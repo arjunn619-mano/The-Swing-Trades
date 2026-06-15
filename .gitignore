@@ -34,8 +34,10 @@ web/.next/
 web/out/
 web/build/
 web/.vercel/
+web/next-env.d.ts
 node_modules/
 .vercel/
+*.tsbuildinfo
 
 # === Reference course material (large binaries: installers, wheels, pyc, logs) ===
 dhan/Dhan API Sessions/

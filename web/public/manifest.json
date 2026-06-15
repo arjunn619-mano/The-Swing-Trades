@@ -1,0 +1,12 @@
+{
+  "name": "The Swing Trades",
+  "short_name": "Swing Trades",
+  "description": "End-of-day NSE/BSE swing screener and 100-day tracker.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0f1f",
+  "theme_color": "#0a0f1f",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
