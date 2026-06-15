@@ -2,7 +2,7 @@ import { Badge, DataTable, ReturnBadge, SectionHeading } from "@/components/ui";
 import { dateStr, money } from "@/lib/format";
 import { getTrackerEntries, type TrackerRow } from "@/lib/queries";
 
-export const revalidate = 3600;
+export const revalidate = 300;
 
 export default async function TrackerPage() {
   const rows = await getTrackerEntries();

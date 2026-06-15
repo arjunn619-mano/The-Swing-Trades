@@ -2,7 +2,7 @@ import { Badge, DataTable, ReturnBadge, SectionHeading, StatCard } from "@/compo
 import { dateStr, fixed, money, pct } from "@/lib/format";
 import { getLatestSignals, getOverview, getStrategyMetrics, type Metric, type Signal } from "@/lib/queries";
 
-export const revalidate = 3600; // ISR: serve cached, refresh hourly (visitors hit the CDN, not the DB)
+export const revalidate = 300; // ISR: serve cached, refresh every 5 min (visitors hit the CDN, not the DB)
 
 export default async function Home() {
   const [overview, metrics, signals] = await Promise.all([

@@ -7,7 +7,14 @@
       "Bash(git init *)",
       "Bash(git add *)",
       "Bash(git commit -q -m 'Batch all DB writes \\(executemany\\) to fix Neon free-tier slowness *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npm --version)",
+      "Bash(echo \"npm: $\\(npm --version 2>/dev/null || echo MISSING\\)\")",
+      "Bash(npx --version)",
+      "Bash(echo \"npx: $\\(npx --version 2>/dev/null || echo MISSING\\)\")",
+      "PowerShell(npm --prefix $web install 2>&1)",
+      "PowerShell($web = \"D:\\\\Claude Projects\\\\Swing Trades\\\\web\")",
+      "Bash(git commit -q -m 'Add Phase 5 Next.js dashboard \\(laptop-first\\) *)"
     ]
   }
 }

@@ -147,9 +147,16 @@ def run_scan(
                 summary.skipped_strategies.append(cfg.key)  # idempotent: already done
                 continue
 
+            strat_cls = registry.get(cfg.key)
+            if strat_cls is None:
+                # Registered in YAML/DB but not implemented in code yet — skip, don't crash.
+                summary.skipped_strategies.append(cfg.key)
+                _log(f"strategy '{cfg.key}' is not implemented in code; skipping")
+                continue
+
             run_id = store.start_scan_run(strat_id, trade_date)
             try:
-                strategy = registry[cfg.key](cfg.params)
+                strategy = strat_cls(cfg.params)
                 signals = list(strategy.evaluate(ctx))
                 store.insert_signals(run_id, strat_id, trade_date, signals)
 

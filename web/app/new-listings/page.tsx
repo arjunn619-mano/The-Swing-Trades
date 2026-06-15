@@ -2,7 +2,7 @@ import { Badge, DataTable, SectionHeading } from "@/components/ui";
 import { dateStr, money } from "@/lib/format";
 import { getNewListings, type NewListing } from "@/lib/queries";
 
-export const revalidate = 3600;
+export const revalidate = 300;
 
 export default async function NewListingsPage() {
   const rows = await getNewListings();
