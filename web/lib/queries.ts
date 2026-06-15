@@ -159,7 +159,7 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
         WHERE tracker_entry_id = t.id ORDER BY trade_date DESC LIMIT 1
       ) o ON TRUE
       ORDER BY t.first_seen_date DESC, i.nse_symbol
-      LIMIT 500`;
+      LIMIT 3000`;
     return rows.map((r) => ({
       symbol: r.nse_symbol ?? r.symbol_name,
       name: r.symbol_name,
