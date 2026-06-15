@@ -10,8 +10,9 @@ CSV = (
     "11536,NSE,E,INE467B01029,EQUITY,TCS,EQ,1,Y\n"
     "49081,NSE,D,INE467B01029,OPTIDX,TCS-FUT,,,N\n"
     "540001,BSE,E,INE999X01010,EQUITY,BSEONLY,A,1,N\n"
-    "1199,NSE,E,INE777Z01011,EQUITY,SGBTEST,SG,1,N\n"     # Sovereign Gold Bond -> excluded
-    "540999,BSE,E,INE888Z01022,EQUITY,BONDTEST,F,1,N\n"   # BSE F (debt) -> excluded
+    "1199,NSE,E,INE777Z01011,EQUITY,SGBTEST,SG,1,N\n"     # Sovereign Gold Bond -> excluded (series)
+    "540999,BSE,E,INE888Z01022,EQUITY,BONDTEST,F,1,N\n"   # BSE F (debt) -> excluded (series)
+    "538591,BSE,E,INF204KA1RY0,EQUITY,FUNDX,A,1,N\n"      # INF = mutual fund -> excluded (ISIN)
 )
 
 
@@ -46,10 +47,11 @@ def test_exclude_asm_gsm_flag():
     assert "INE467B01029" not in uni  # TCS flagged ASM/GSM = Y
 
 
-def test_excludes_non_equity_series():
+def test_excludes_non_equity_series_and_funds():
     uni = {u.isin for u in I.resolve_universe(I.equity_rows(I.parse_instrument_csv(CSV)))}
-    assert "INE777Z01011" not in uni  # Sovereign Gold Bond (NSE SG)
+    assert "INE777Z01011" not in uni  # Sovereign Gold Bond (NSE SG series)
     assert "INE888Z01022" not in uni  # BSE F group (debt)
+    assert "INF204KA1RY0" not in uni  # mutual fund (INF ISIN prefix)
 
 
 def test_empty_allowed_series_keeps_all():

@@ -72,6 +72,7 @@ def equity_rows(
         (seg == "E")
         & exch.isin(_EQUITY_EXCHANGES)
         & (isin != "")
+        & isin.str.upper().str.startswith("INE")  # equity ISINs are INE...; INF = mutual funds/ETFs
         & ((instr == "EQUITY") | (instr == ""))
     )
 
