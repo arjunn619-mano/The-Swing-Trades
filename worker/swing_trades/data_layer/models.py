@@ -22,10 +22,12 @@ class InstrumentRow:
     exchange: str  # NSE | BSE
     segment: str  # E (equity)
     instrument: str  # EQUITY
-    symbol_name: str
+    symbol_name: str  # long legal name, e.g. RELIANCE INDUSTRIES LTD
     series: Optional[str] = None
     lot_size: Optional[int] = None
     asm_gsm_flag: Optional[str] = None
+    trading_symbol: Optional[str] = None  # the ticker, e.g. RELIANCE (UNDERLYING_SYMBOL)
+    display_name: Optional[str] = None  # nice name, e.g. Reliance Industries (DISPLAY_NAME)
 
 
 @dataclass(frozen=True)

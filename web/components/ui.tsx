@@ -1,5 +1,21 @@
 import Link from "next/link";
-import { pct } from "@/lib/format";
+import { chartUrl, pct } from "@/lib/format";
+
+export function ChartLink({ exchange, ticker }: { exchange: string | null; ticker: string | null }) {
+  const url = chartUrl(exchange, ticker);
+  if (!url) return <span className="text-slate-600">—</span>;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Open chart on TradingView"
+      className="text-sky-400 hover:text-sky-300"
+    >
+      ↗
+    </a>
+  );
+}
 
 export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (

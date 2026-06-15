@@ -3,16 +3,16 @@ import pytest
 from swing_trades.data_layer import instruments as I
 
 CSV = (
-    "SECURITY_ID,EXCH_ID,SEGMENT,ISIN,INSTRUMENT,SYMBOL_NAME,SERIES,LOT_SIZE,ASM_GSM_FLAG\n"
-    "2885,NSE,E,INE002A01018,EQUITY,RELIANCE,EQ,1,N\n"
-    "500325,BSE,E,INE002A01018,EQUITY,RELIANCE,A,1,N\n"
-    "1333,NSE,E,INE040A01034,EQUITY,HDFCBANK,EQ,1,N\n"
-    "11536,NSE,E,INE467B01029,EQUITY,TCS,EQ,1,Y\n"
-    "49081,NSE,D,INE467B01029,OPTIDX,TCS-FUT,,,N\n"
-    "540001,BSE,E,INE999X01010,EQUITY,BSEONLY,A,1,N\n"
-    "1199,NSE,E,INE777Z01011,EQUITY,SGBTEST,SG,1,N\n"     # Sovereign Gold Bond -> excluded (series)
-    "540999,BSE,E,INE888Z01022,EQUITY,BONDTEST,F,1,N\n"   # BSE F (debt) -> excluded (series)
-    "538591,BSE,E,INF204KA1RY0,EQUITY,FUNDX,A,1,N\n"      # INF = mutual fund -> excluded (ISIN)
+    "SECURITY_ID,EXCH_ID,SEGMENT,ISIN,INSTRUMENT,UNDERLYING_SYMBOL,SYMBOL_NAME,DISPLAY_NAME,SERIES,LOT_SIZE,ASM_GSM_FLAG\n"
+    "2885,NSE,E,INE002A01018,EQUITY,RELIANCE,RELIANCE INDUSTRIES LTD,Reliance Industries,EQ,1,N\n"
+    "500325,BSE,E,INE002A01018,EQUITY,RELIANCE,RELIANCE INDUSTRIES LTD,Reliance Industries,A,1,N\n"
+    "1333,NSE,E,INE040A01034,EQUITY,HDFCBANK,HDFC BANK LTD,HDFC Bank,EQ,1,N\n"
+    "11536,NSE,E,INE467B01029,EQUITY,TCS,TATA CONSULTANCY SERV LT,Tata Consultancy Services,EQ,1,Y\n"
+    "49081,NSE,D,INE467B01029,OPTIDX,TCS,TCS FUT,TCS Fut,,,\n"
+    "540001,BSE,E,INE999X01010,EQUITY,BSEONLY,BSEONLY LIMITED,BSEonly,A,1,N\n"
+    "1199,NSE,E,INE777Z01011,EQUITY,SGBTEST,SGB TEST,SGB Test,SG,1,N\n"      # SGB -> excluded (series)
+    "540999,BSE,E,INE888Z01022,EQUITY,BONDTEST,BOND TEST,Bond Test,F,1,N\n"  # BSE F (debt) -> excluded (series)
+    "538591,BSE,E,INF204KA1RY0,EQUITY,FUNDX,FUND X,Fund X,A,1,N\n"           # INF = mutual fund -> excluded (ISIN)
 )
 
 
@@ -29,7 +29,8 @@ def test_resolve_prefers_nse_keeps_bse_scrip():
     assert rel.exchange_segment == "NSE_EQ"
     assert rel.security_id == "2885"        # NSE id chosen to fetch with
     assert rel.bse_scrip_code == "500325"   # BSE scrip retained (Rule 4)
-    assert rel.nse_symbol == "RELIANCE"
+    assert rel.nse_symbol == "RELIANCE"     # ticker from UNDERLYING_SYMBOL
+    assert rel.symbol_name == "Reliance Industries"  # nice name from DISPLAY_NAME
 
 
 def test_resolve_bse_only_instrument():
@@ -38,7 +39,7 @@ def test_resolve_bse_only_instrument():
     assert b.exchange_pref == "BSE"
     assert b.exchange_segment == "BSE_EQ"
     assert b.bse_scrip_code == "540001"
-    assert b.nse_symbol is None
+    assert b.nse_symbol == "BSEONLY"  # ticker for the chosen (BSE) listing
 
 
 def test_exclude_asm_gsm_flag():

@@ -96,6 +96,8 @@ def equity_rows(
                 series=(str(rec.get("SERIES", "")).strip() or None),
                 lot_size=_to_int(rec.get("LOT_SIZE")),
                 asm_gsm_flag=(str(rec.get("ASM_GSM_FLAG", "")).strip() or None),
+                trading_symbol=(str(rec.get("UNDERLYING_SYMBOL", "")).strip() or None),
+                display_name=(str(rec.get("DISPLAY_NAME", "")).strip() or None),
             )
         )
     return rows
@@ -125,9 +127,9 @@ def resolve_universe(
                 security_id=chosen.security_id,
                 exchange_pref=chosen.exchange,
                 exchange_segment=f"{chosen.exchange}_EQ",
-                nse_symbol=(nse.symbol_name if nse else None),
+                nse_symbol=(chosen.trading_symbol or chosen.symbol_name),  # primary ticker, e.g. RELIANCE
                 bse_scrip_code=(bse.security_id if bse else None),
-                symbol_name=chosen.symbol_name,
+                symbol_name=(chosen.display_name or chosen.symbol_name),  # nice name, e.g. Reliance Industries
                 series=chosen.series,
                 lot_size=chosen.lot_size,
                 asm_gsm_flag=chosen.asm_gsm_flag,

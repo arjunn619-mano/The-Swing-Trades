@@ -15,3 +15,10 @@ export const fixed = (x: number | null, dp = 2) =>
 
 export const dateStr = (x: string | null) =>
   x ? new Date(x).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+// Per-stock TradingView chart (Dhan has no per-stock URL). e.g. NSE:RELIANCE.
+export function chartUrl(exchange: string | null, ticker: string | null): string | null {
+  if (!ticker || !exchange) return null;
+  const ex = exchange.toUpperCase() === "BSE" ? "BSE" : "NSE";
+  return `https://in.tradingview.com/chart/?symbol=${ex}:${encodeURIComponent(ticker)}`;
+}

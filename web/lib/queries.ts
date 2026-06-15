@@ -37,6 +37,7 @@ export type TrackerRow = {
   instrumentId: number;
   symbol: string;
   name: string;
+  exchange: string;
   strategy: string;
   firstSeenDate: string;
   entryClose: number | null;
@@ -154,7 +155,7 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
   if (!sql) return [];
   try {
     const rows = await sql`
-      SELECT t.instrument_id, i.nse_symbol, i.symbol_name, st.display_name AS strategy,
+      SELECT t.instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
              t.first_seen_date, t.entry_close, t.appearance_count, t.status,
              o.return_vs_close, o.trading_day_n, o.close AS current_close
       FROM tracker_entries t
@@ -170,6 +171,7 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
       instrumentId: r.instrument_id,
       symbol: r.nse_symbol ?? r.symbol_name,
       name: r.symbol_name,
+      exchange: r.exchange_pref,
       strategy: r.strategy,
       firstSeenDate: r.first_seen_date,
       entryClose: num(r.entry_close),

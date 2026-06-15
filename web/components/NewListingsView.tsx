@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { StarButton } from "@/components/StarButton";
+import { ChartLink } from "@/components/ui";
 import { dateStr, money, pct } from "@/lib/format";
 import type { NewListing } from "@/lib/queries";
 
 type SortKey = "symbol" | "firstSeen" | "entryClose" | "currentClose" | "returnPct" | "bars";
 type ReturnFilter = "all" | "positive" | "negative";
 
-const COLUMNS: { key: SortKey | "star" | "name" | "exchange"; label: string; align?: "right"; sortable?: boolean }[] = [
+const COLUMNS: { key: SortKey | "star" | "name" | "exchange" | "chart"; label: string; align?: "right"; sortable?: boolean }[] = [
   { key: "star", label: "" },
   { key: "symbol", label: "Symbol", sortable: true },
   { key: "name", label: "Name" },
@@ -18,6 +19,7 @@ const COLUMNS: { key: SortKey | "star" | "name" | "exchange"; label: string; ali
   { key: "currentClose", label: "Current close", align: "right", sortable: true },
   { key: "returnPct", label: "Return", align: "right", sortable: true },
   { key: "bars", label: "Days of data", align: "right", sortable: true },
+  { key: "chart", label: "Chart", align: "right" },
 ];
 
 function value(r: NewListing, key: SortKey): number | string {
@@ -187,6 +189,7 @@ export function NewListingsView({ rows, starredIds }: { rows: NewListing[]; star
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.currentClose)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right"><ReturnCell value={r.returnPct} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-300">{r.bars}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right"><ChartLink exchange={r.exchange} ticker={r.symbol} /></td>
                 </tr>
               ))}
             </tbody>
