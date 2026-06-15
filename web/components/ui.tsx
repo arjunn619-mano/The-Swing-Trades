@@ -115,13 +115,17 @@ export function Nav() {
   ];
   return (
     <header className="sticky top-0 z-10 border-b border-navy-700/60 bg-navy-950/80 backdrop-blur">
-      <div className="mx-auto flex max-w-[1800px] items-center justify-between px-4 py-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
+      <div className="mx-auto flex max-w-[1800px] items-center gap-3 px-4 py-3 sm:px-6">
+        <Link href="/" className="shrink-0">
           <span className="text-base font-semibold text-slate-100">The Swing Trades</span>
         </Link>
-        <nav className="flex gap-1 text-sm">
+        <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {links.map((l) => (
-            <Link key={l.href} href={l.href} className="rounded-md px-2.5 py-1 text-slate-300 hover:bg-navy-800 hover:text-white">
+            <Link
+              key={l.href}
+              href={l.href}
+              className="whitespace-nowrap rounded-md px-2.5 py-1 text-slate-300 hover:bg-navy-800 hover:text-white"
+            >
               {l.label}
             </Link>
           ))}

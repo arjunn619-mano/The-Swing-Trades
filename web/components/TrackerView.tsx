@@ -23,6 +23,8 @@ const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "chart"; label: s
   { key: "chart", label: "Chart", align: "right" },
 ];
 
+const SORT_OPTIONS = COLUMNS.filter((c) => c.sortable).map((c) => ({ key: c.key as SortKey, label: c.label }));
+
 function value(r: TrackerRow, key: SortKey): number | string {
   switch (key) {
     case "symbol":
@@ -65,7 +67,6 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
   }, [rows]);
   const strategies = useMemo(() => Array.from(strategyCounts.keys()).sort(), [strategyCounts]);
 
-  // Strategy-filtered set (the % positive metric reflects the strategy selection, not the return filter).
   const strategyFiltered = useMemo(
     () => (strategy === "all" ? rows : rows.filter((r) => r.strategy === strategy)),
     [rows, strategy]
@@ -114,15 +115,16 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
+      {/* Strategy filter — horizontal chips on mobile, vertical sidebar on desktop */}
       <aside className="lg:w-56 lg:shrink-0">
-        <div className="mb-2 text-xs uppercase tracking-wide text-slate-400">Strategy</div>
-        <div className="flex flex-col gap-1">
+        <div className="mb-2 hidden text-xs uppercase tracking-wide text-slate-400 lg:block">Strategy</div>
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0 lg:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {sidebarItems.map((item) => (
             <button
               key={item.key}
               onClick={() => setStrategy(item.key)}
-              className={`flex items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                strategy === item.key ? "bg-navy-700 text-white" : "text-slate-300 hover:bg-navy-800"
+              className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm transition-colors lg:w-full lg:justify-between lg:shrink ${
+                strategy === item.key ? "bg-navy-700 text-white" : "bg-navy-900/60 text-slate-300 hover:bg-navy-800 lg:bg-transparent"
               }`}
             >
               <span>{item.label}</span>
@@ -133,32 +135,56 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
       </aside>
 
       <div className="min-w-0 flex-1 space-y-3">
+        {/* Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm">
             <span className="text-slate-400">
-              {filtered.length.toLocaleString("en-IN")} of {strategyFiltered.length.toLocaleString("en-IN")} entries
+              {filtered.length.toLocaleString("en-IN")} of {strategyFiltered.length.toLocaleString("en-IN")}
             </span>
             <span className="rounded-md bg-navy-800 px-2 py-1 text-xs text-slate-300">
               <span className="font-semibold text-emerald-300">{(positivePct * 100).toFixed(1)}%</span> positive
-              <span className="text-slate-500"> ({positives}/{strategyFiltered.length})</span>
             </span>
           </div>
-          <div className="flex gap-0.5 rounded-lg border border-navy-700/60 bg-navy-900/60 p-0.5">
-            {returnTabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setReturnFilter(t.key)}
-                className={`rounded-md px-3 py-1 text-sm transition-colors ${
-                  returnFilter === t.key ? "bg-navy-700 text-white" : "text-slate-400 hover:text-slate-200"
-                }`}
+          <div className="flex items-center gap-2">
+            {/* Mobile sort control */}
+            <div className="flex items-center gap-1 md:hidden">
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                className="rounded-md border border-navy-700/60 bg-navy-900 px-2 py-1 text-xs text-slate-200"
+                aria-label="Sort by"
               >
-                {t.label}
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                className="rounded-md border border-navy-700/60 bg-navy-900 px-2 py-1 text-xs text-slate-300"
+                aria-label="Toggle sort direction"
+              >
+                {sortDir === "asc" ? "▲" : "▼"}
               </button>
-            ))}
+            </div>
+            {/* Return filter */}
+            <div className="flex gap-0.5 rounded-lg border border-navy-700/60 bg-navy-900/60 p-0.5">
+              {returnTabs.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setReturnFilter(t.key)}
+                  className={`rounded-md px-2.5 py-1 text-sm transition-colors ${
+                    returnFilter === t.key ? "bg-navy-700 text-white" : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-navy-700/60 bg-navy-900/40">
+        {/* Desktop table */}
+        <div className="hidden overflow-x-auto rounded-xl border border-navy-700/60 bg-navy-900/40 md:block">
           <table className="w-full min-w-[900px] text-sm">
             <thead>
               <tr className="bg-navy-900/70 text-left text-xs uppercase tracking-wide text-slate-400">
@@ -199,6 +225,29 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile cards */}
+        <div className="space-y-2 md:hidden">
+          {filtered.map((r, i) => (
+            <div key={i} className="rounded-lg border border-navy-700/60 bg-navy-900/40 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <StarButton instrumentId={r.instrumentId} initialStarred={starred.has(r.instrumentId)} />
+                  <span className="truncate font-semibold text-slate-100">{r.symbol}</span>
+                  <ChartLink exchange={r.exchange} ticker={r.symbol} />
+                </div>
+                <ReturnCell value={r.latestReturn} />
+              </div>
+              <div className="mt-1 truncate text-xs text-slate-500">{r.name}</div>
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                <span className="text-slate-500">Strategy <span className="text-slate-300">{r.strategy}</span></span>
+                <span className="text-slate-500">Day <span className="text-slate-300">{r.dayN ?? "—"}/100</span></span>
+                <span className="text-slate-500">Entry <span className="text-slate-300">{money(r.entryClose)}</span></span>
+                <span className="text-slate-500">Now <span className="text-slate-300">{money(r.currentClose)}</span></span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
