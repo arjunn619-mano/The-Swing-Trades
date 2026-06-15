@@ -115,11 +115,11 @@ export function Nav() {
   ];
   return (
     <header className="sticky top-0 z-10 border-b border-navy-700/60 bg-navy-950/80 backdrop-blur">
-      <div className="mx-auto flex max-w-[1800px] items-center gap-3 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <Link href="/" className="shrink-0">
           <span className="text-base font-semibold text-slate-100">The Swing Trades</span>
         </Link>
-        <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav className="flex min-w-0 gap-1 overflow-x-auto text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {links.map((l) => (
             <Link
               key={l.href}
