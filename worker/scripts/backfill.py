@@ -39,8 +39,9 @@ def main() -> None:
     with connection(settings.require_database_url()) as conn:
         store = PostgresStore(conn)
         instruments = store.get_active_instruments()
-        logger.info(f"backfilling {len(instruments)} instruments, {from_date}..{to_date}")
-        for ref in instruments:
+        total = len(instruments)
+        print(f"Backfilling {total} instruments, {from_date}..{to_date}", flush=True)
+        for i, ref in enumerate(instruments, start=1):
             try:
                 bars = client.historical_daily(ref.security_id, ref.exchange_segment, from_date, to_date)
                 store.upsert_price_bars(ref.id, bars)
@@ -48,6 +49,8 @@ def main() -> None:
             except Exception:
                 fail += 1
                 logger.exception(f"backfill failed for {ref.isin} ({ref.security_id})")
+            if i % 200 == 0 or i == total:
+                print(f"  ...{i}/{total} ({ok} ok, {fail} failed)", flush=True)
             time.sleep(0.25)  # stay well under the 5 req/s data-API limit
     print(f"Backfill complete: {ok} ok, {fail} failed.")
 

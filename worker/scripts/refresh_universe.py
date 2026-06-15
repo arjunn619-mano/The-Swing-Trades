@@ -18,22 +18,27 @@ from swing_trades.data_layer.instruments import (  # noqa: E402
     resolve_universe,
 )
 from swing_trades.db.connection import connection  # noqa: E402
-from swing_trades.db.writes import deactivate_missing_instruments, upsert_instruments  # noqa: E402
+from swing_trades.db.writes import upsert_instruments  # noqa: E402
 
 
 def main() -> None:
     import requests
 
     settings = load_settings()
-    csv_text = requests.get(INSTRUMENT_CSV_URL, timeout=120).text
+
+    print("Downloading instrument master...", flush=True)
+    csv_text = requests.get(INSTRUMENT_CSV_URL, timeout=180).text
+    print(f"Downloaded {len(csv_text):,} chars; parsing...", flush=True)
+
     universe = resolve_universe(equity_rows(parse_instrument_csv(csv_text)))
     if not universe:
         raise RuntimeError("instrument master parsed to an empty universe — refusing to write")
+    print(f"Parsed {len(universe):,} liquid equities; writing to DB (batched)...", flush=True)
 
     with connection(settings.require_database_url()) as conn:
-        upsert_instruments(conn, universe)
-        deactivated = deactivate_missing_instruments(conn, {u.isin for u in universe})
-    print(f"Universe refreshed: {len(universe)} active instruments; {deactivated} deactivated.")
+        upsert_instruments(conn, universe, deactivate_missing=True)
+
+    print(f"Universe refreshed: {len(universe):,} active instruments.", flush=True)
 
 
 if __name__ == "__main__":

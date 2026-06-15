@@ -4,7 +4,10 @@
       "Bash(python -c \"import sys; from docx import Document; d=Document\\('Junglee_Swing_Restart_Prompt.docx'\\); print\\('\\\\n'.join\\(p.text for p in d.paragraphs\\)\\)\")",
       "Bash(python -c \"from docx import Document; d=Document\\('Junglee_Swing_Restart_Prompt.docx'\\); open\\('_restart_prompt_extracted.txt','w',encoding='utf-8'\\).write\\('\\\\n'.join\\(p.text for p in d.paragraphs\\)\\)\")",
       "Bash(python _sanitize_docx.py)",
-      "Bash(git init *)"
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Batch all DB writes \\(executemany\\) to fix Neon free-tier slowness *)",
+      "Bash(git push *)"
     ]
   }
 }
