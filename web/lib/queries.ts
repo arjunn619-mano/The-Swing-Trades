@@ -34,11 +34,13 @@ export type Signal = {
 };
 
 export type TrackerRow = {
+  instrumentId: number;
   symbol: string;
   name: string;
   strategy: string;
   firstSeenDate: string;
   entryClose: number | null;
+  currentClose: number | null;
   appearanceCount: number;
   status: string;
   latestReturn: number | null;
@@ -46,25 +48,29 @@ export type TrackerRow = {
 };
 
 export type NewListing = {
+  instrumentId: number;
   symbol: string;
   name: string;
   exchange: string;
   bars: number;
-  firstBar: string;
-  lastBar: string;
+  firstSeen: string;
+  entryClose: number | null;
+  currentClose: number | null;
+  returnPct: number | null;
+};
+
+export type StarredRow = {
+  instrumentId: number;
+  symbol: string;
+  name: string;
+  exchange: string;
   lastClose: number | null;
 };
 
-const NEW_LISTING_MAX_BARS = 45; // < ~9 trading weeks of history => recently listed
+const NEW_LISTING_MAX_BARS = 45;
 
 export async function getOverview(): Promise<Overview> {
-  const empty: Overview = {
-    lastScanDate: null,
-    lastScanStatus: null,
-    activeCount: 0,
-    trackedCount: 0,
-    newListingCount: 0,
-  };
+  const empty: Overview = { lastScanDate: null, lastScanStatus: null, activeCount: 0, trackedCount: 0, newListingCount: 0 };
   if (!sql) return empty;
   try {
     const [scan] = await sql`SELECT trade_date, status FROM scan_runs ORDER BY trade_date DESC, id DESC LIMIT 1`;
@@ -148,24 +154,26 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
   if (!sql) return [];
   try {
     const rows = await sql`
-      SELECT i.nse_symbol, i.symbol_name, st.display_name AS strategy,
+      SELECT t.instrument_id, i.nse_symbol, i.symbol_name, st.display_name AS strategy,
              t.first_seen_date, t.entry_close, t.appearance_count, t.status,
-             o.return_vs_close, o.trading_day_n
+             o.return_vs_close, o.trading_day_n, o.close AS current_close
       FROM tracker_entries t
       JOIN instruments i ON i.id = t.instrument_id
       JOIN strategies st ON st.id = t.strategy_id
       LEFT JOIN LATERAL (
-        SELECT return_vs_close, trading_day_n FROM tracker_observations
+        SELECT return_vs_close, trading_day_n, close FROM tracker_observations
         WHERE tracker_entry_id = t.id ORDER BY trade_date DESC LIMIT 1
       ) o ON TRUE
       ORDER BY t.first_seen_date DESC, i.nse_symbol
       LIMIT 3000`;
     return rows.map((r) => ({
+      instrumentId: r.instrument_id,
       symbol: r.nse_symbol ?? r.symbol_name,
       name: r.symbol_name,
       strategy: r.strategy,
       firstSeenDate: r.first_seen_date,
       entryClose: num(r.entry_close),
+      currentClose: num(r.current_close),
       appearanceCount: r.appearance_count ?? 1,
       status: r.status,
       latestReturn: num(r.return_vs_close),
@@ -181,27 +189,66 @@ export async function getNewListings(): Promise<NewListing[]> {
   if (!sql) return [];
   try {
     const rows = await sql`
-      SELECT i.nse_symbol, i.symbol_name, i.exchange_pref,
-             count(p.id)::int AS bars, min(p.trade_date) AS first_bar, max(p.trade_date) AS last_bar,
-             (SELECT close FROM price_history WHERE instrument_id = i.id ORDER BY trade_date DESC LIMIT 1) AS last_close
+      SELECT i.id AS instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref,
+             count(p.id)::int AS bars,
+             min(p.trade_date) AS first_bar,
+             (array_agg(p.close ORDER BY p.trade_date ASC))[1] AS first_close,
+             (array_agg(p.close ORDER BY p.trade_date DESC))[1] AS last_close
       FROM instruments i
       JOIN price_history p ON p.instrument_id = i.id
       WHERE i.active = TRUE
       GROUP BY i.id
       HAVING count(p.id) < ${NEW_LISTING_MAX_BARS}
       ORDER BY min(p.trade_date) DESC, count(p.id) ASC
-      LIMIT 300`;
+      LIMIT 1000`;
+    return rows.map((r) => {
+      const first = num(r.first_close);
+      const last = num(r.last_close);
+      return {
+        instrumentId: r.instrument_id,
+        symbol: r.nse_symbol ?? r.symbol_name,
+        name: r.symbol_name,
+        exchange: r.exchange_pref,
+        bars: r.bars,
+        firstSeen: r.first_bar,
+        entryClose: first,
+        currentClose: last,
+        returnPct: first && last ? last / first - 1 : null,
+      };
+    });
+  } catch (e) {
+    console.error("getNewListings failed:", e);
+    return [];
+  }
+}
+
+export async function getStarredIds(): Promise<number[]> {
+  if (!sql) return [];
+  try {
+    const rows = await sql`SELECT instrument_id FROM starred`;
+    return rows.map((r) => r.instrument_id as number);
+  } catch {
+    return []; // table may not exist until the first star is added
+  }
+}
+
+export async function getStarred(): Promise<StarredRow[]> {
+  if (!sql) return [];
+  try {
+    const rows = await sql`
+      SELECT i.id AS instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref,
+             (SELECT close FROM price_history WHERE instrument_id = i.id ORDER BY trade_date DESC LIMIT 1) AS last_close
+      FROM starred s
+      JOIN instruments i ON i.id = s.instrument_id
+      ORDER BY s.created_at DESC`;
     return rows.map((r) => ({
+      instrumentId: r.instrument_id,
       symbol: r.nse_symbol ?? r.symbol_name,
       name: r.symbol_name,
       exchange: r.exchange_pref,
-      bars: r.bars,
-      firstBar: r.first_bar,
-      lastBar: r.last_bar,
       lastClose: num(r.last_close),
     }));
-  } catch (e) {
-    console.error("getNewListings failed:", e);
+  } catch {
     return [];
   }
 }

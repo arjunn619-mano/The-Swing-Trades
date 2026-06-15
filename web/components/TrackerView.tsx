@@ -1,18 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { StarButton } from "@/components/StarButton";
 import { dateStr, money, pct } from "@/lib/format";
 import type { TrackerRow } from "@/lib/queries";
 
-type SortKey = "symbol" | "firstSeenDate" | "entryClose" | "dayN" | "latestReturn" | "appearanceCount";
+type SortKey = "symbol" | "firstSeenDate" | "entryClose" | "currentClose" | "dayN" | "latestReturn" | "appearanceCount";
 type ReturnFilter = "all" | "positive" | "negative";
 
-const COLUMNS: { key: SortKey | "name" | "strategy"; label: string; align?: "right"; sortable?: boolean }[] = [
+const COLUMNS: { key: SortKey | "star" | "name" | "strategy"; label: string; align?: "right"; sortable?: boolean }[] = [
+  { key: "star", label: "" },
   { key: "symbol", label: "Symbol", sortable: true },
   { key: "name", label: "Name" },
   { key: "strategy", label: "Strategy" },
   { key: "firstSeenDate", label: "First seen", sortable: true },
   { key: "entryClose", label: "Entry close", align: "right", sortable: true },
+  { key: "currentClose", label: "Current close", align: "right", sortable: true },
   { key: "dayN", label: "Day", align: "right", sortable: true },
   { key: "latestReturn", label: "Return", align: "right", sortable: true },
   { key: "appearanceCount", label: "Appears", align: "right", sortable: true },
@@ -26,6 +29,8 @@ function value(r: TrackerRow, key: SortKey): number | string {
       return r.firstSeenDate ?? "";
     case "entryClose":
       return r.entryClose ?? -Infinity;
+    case "currentClose":
+      return r.currentClose ?? -Infinity;
     case "dayN":
       return r.dayN ?? -Infinity;
     case "latestReturn":
@@ -43,11 +48,13 @@ function ReturnCell({ value: v }: { value: number | null }) {
   return <span className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${tone}`}>{v > 0 ? "+" : ""}{pct(v)}</span>;
 }
 
-export function TrackerView({ rows }: { rows: TrackerRow[] }) {
+export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredIds: number[] }) {
   const [strategy, setStrategy] = useState<string>("all");
   const [returnFilter, setReturnFilter] = useState<ReturnFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("firstSeenDate");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const starred = useMemo(() => new Set(starredIds), [starredIds]);
 
   const strategyCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -56,9 +63,17 @@ export function TrackerView({ rows }: { rows: TrackerRow[] }) {
   }, [rows]);
   const strategies = useMemo(() => Array.from(strategyCounts.keys()).sort(), [strategyCounts]);
 
+  // Strategy-filtered set (the % positive metric reflects the strategy selection, not the return filter).
+  const strategyFiltered = useMemo(
+    () => (strategy === "all" ? rows : rows.filter((r) => r.strategy === strategy)),
+    [rows, strategy]
+  );
+
+  const positives = strategyFiltered.filter((r) => (r.latestReturn ?? 0) > 0).length;
+  const positivePct = strategyFiltered.length ? positives / strategyFiltered.length : 0;
+
   const filtered = useMemo(() => {
-    let out = rows;
-    if (strategy !== "all") out = out.filter((r) => r.strategy === strategy);
+    let out = strategyFiltered;
     if (returnFilter === "positive") out = out.filter((r) => (r.latestReturn ?? 0) > 0);
     else if (returnFilter === "negative") out = out.filter((r) => (r.latestReturn ?? 0) < 0);
     return [...out].sort((a, b) => {
@@ -67,13 +82,13 @@ export function TrackerView({ rows }: { rows: TrackerRow[] }) {
       const c = typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : (va as number) - (vb as number);
       return sortDir === "asc" ? c : -c;
     });
-  }, [rows, strategy, returnFilter, sortKey, sortDir]);
+  }, [strategyFiltered, returnFilter, sortKey, sortDir]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(key);
-      setSortDir("desc"); // largest → smallest by default
+      setSortDir("desc");
     }
   }
 
@@ -97,8 +112,7 @@ export function TrackerView({ rows }: { rows: TrackerRow[] }) {
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
-      {/* Left: strategy filter */}
-      <aside className="lg:w-52 lg:shrink-0">
+      <aside className="lg:w-56 lg:shrink-0">
         <div className="mb-2 text-xs uppercase tracking-wide text-slate-400">Strategy</div>
         <div className="flex flex-col gap-1">
           {sidebarItems.map((item) => (
@@ -116,11 +130,16 @@ export function TrackerView({ rows }: { rows: TrackerRow[] }) {
         </div>
       </aside>
 
-      {/* Right: filter bar + sortable table */}
       <div className="min-w-0 flex-1 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-sm text-slate-400">
-            {filtered.length.toLocaleString("en-IN")} of {rows.length.toLocaleString("en-IN")} entries
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-slate-400">
+              {filtered.length.toLocaleString("en-IN")} of {strategyFiltered.length.toLocaleString("en-IN")} entries
+            </span>
+            <span className="rounded-md bg-navy-800 px-2 py-1 text-xs text-slate-300">
+              <span className="font-semibold text-emerald-300">{(positivePct * 100).toFixed(1)}%</span> positive
+              <span className="text-slate-500"> ({positives}/{strategyFiltered.length})</span>
+            </span>
           </div>
           <div className="flex gap-0.5 rounded-lg border border-navy-700/60 bg-navy-900/60 p-0.5">
             {returnTabs.map((t) => (
@@ -138,7 +157,7 @@ export function TrackerView({ rows }: { rows: TrackerRow[] }) {
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-navy-700/60 bg-navy-900/40">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[900px] text-sm">
             <thead>
               <tr className="bg-navy-900/70 text-left text-xs uppercase tracking-wide text-slate-400">
                 {COLUMNS.map((c) => {
@@ -163,15 +182,15 @@ export function TrackerView({ rows }: { rows: TrackerRow[] }) {
             <tbody>
               {filtered.map((r, i) => (
                 <tr key={i} className="border-t border-navy-700/40 hover:bg-navy-800/40">
+                  <td className="px-3 py-2"><StarButton instrumentId={r.instrumentId} initialStarred={starred.has(r.instrumentId)} /></td>
                   <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-100">{r.symbol}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{r.name}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-300">{r.strategy}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-300">{dateStr(r.firstSeenDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.entryClose)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.currentClose)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-300">{r.dayN ?? "—"}/100</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    <ReturnCell value={r.latestReturn} />
-                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right"><ReturnCell value={r.latestReturn} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-300">{r.appearanceCount}×</td>
                 </tr>
               ))}

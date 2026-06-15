@@ -124,6 +124,13 @@ CREATE TABLE IF NOT EXISTS trading_calendar (
     is_trading_day  BOOLEAN NOT NULL
 );
 
+-- Dashboard "starred" / favourite stocks. Written by the web app's /api/star route
+-- (the web app also CREATEs this IF NOT EXISTS, so it works without re-running init_db).
+CREATE TABLE IF NOT EXISTS starred (
+    instrument_id  BIGINT PRIMARY KEY REFERENCES instruments(id) ON DELETE CASCADE,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history (trade_date);
 CREATE INDEX IF NOT EXISTS idx_scan_signals_run ON scan_signals (scan_run_id);
 CREATE INDEX IF NOT EXISTS idx_scan_signals_strategy_date ON scan_signals (strategy_id, trade_date);

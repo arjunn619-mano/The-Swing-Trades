@@ -94,10 +94,12 @@ export function Nav() {
     { href: "/", label: "Overview" },
     { href: "/tracker", label: "Tracker" },
     { href: "/new-listings", label: "New Listings" },
+    { href: "/strategies", label: "Strategies" },
+    { href: "/starred", label: "Starred" },
   ];
   return (
     <header className="sticky top-0 z-10 border-b border-navy-700/60 bg-navy-950/80 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+      <div className="mx-auto flex max-w-[1800px] items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
           <span className="text-base font-semibold text-slate-100">The Swing Trades</span>
         </Link>
@@ -115,7 +117,7 @@ export function Nav() {
 
 export function Disclaimer() {
   return (
-    <footer className="mx-auto mt-10 max-w-5xl px-4 pb-10 text-xs text-slate-500">
+    <footer className="mx-auto mt-10 max-w-[1800px] px-4 pb-10 text-xs text-slate-500 sm:px-6">
       <Card className="bg-navy-900/40">
         <p className="font-medium text-slate-400">What is this?</p>
         <p className="mt-1">
