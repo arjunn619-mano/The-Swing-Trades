@@ -1,0 +1,42 @@
+name: EOD Scan
+
+on:
+  schedule:
+    # 14:00 UTC = 7:30 PM IST, Mon–Fri. The script still skips NSE holidays itself.
+    - cron: "0 14 * * 1-5"
+  workflow_dispatch: {}
+
+# Prerequisite (run once via the "Bootstrap" workflow): init DB + refresh universe + backfill.
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
+      DHAN_PIN: ${{ secrets.DHAN_PIN }}
+      DHAN_TOTP_SECRET: ${{ secrets.DHAN_TOTP_SECRET }}
+      ALERT_TELEGRAM_BOT_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
+      ALERT_TELEGRAM_CHAT_ID: ${{ secrets.ALERT_TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install worker
+        run: pip install ./worker
+
+      - name: Refresh universe (cheap; picks up new listings)
+        working-directory: worker
+        run: python scripts/refresh_universe.py
+
+      - name: Run EOD scan (catchup-aware, idempotent)
+        working-directory: worker
+        run: python scripts/run_scan_if_needed.py
+
+      - name: Upload health artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-${{ github.run_id }}
+          path: worker/artifacts/
+          if-no-files-found: warn

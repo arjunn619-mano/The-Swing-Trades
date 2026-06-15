@@ -1,0 +1,334 @@
+{
+  "fetched": {
+    "https://dhanhq.co/docs/v2/releases/": {
+      "title": "Release Notes",
+      "path": "docs\\dhanhq.co\\docs\\v2\\releases\\index.md",
+      "size_bytes": 13032,
+      "time": "2026-04-21T19:53:24Z"
+    },
+    "https://dhanhq.co/docs/v2/conditional-trigger/": {
+      "title": "Conditional Trigger",
+      "path": "docs\\dhanhq.co\\docs\\v2\\conditional-trigger\\index.md",
+      "size_bytes": 18310,
+      "time": "2026-04-21T19:53:24Z"
+    },
+    "https://dhanhq.co/docs/v2/orders/": {
+      "title": "Orders",
+      "path": "docs\\dhanhq.co\\docs\\v2\\orders\\index.md",
+      "size_bytes": 24258,
+      "time": "2026-04-21T19:53:25Z"
+    },
+    "https://dhanhq.co/docs/v2/funds/": {
+      "title": "Funds & Margin",
+      "path": "docs\\dhanhq.co\\docs\\v2\\funds\\index.md",
+      "size_bytes": 6266,
+      "time": "2026-04-21T19:53:25Z"
+    },
+    "https://dhanhq.co/docs/v2/super-order/": {
+      "title": "Super Order",
+      "path": "docs\\dhanhq.co\\docs\\v2\\super-order\\index.md",
+      "size_bytes": 12663,
+      "time": "2026-04-21T19:53:26Z"
+    },
+    "https://dhanhq.co/docs/v2/postback/": {
+      "title": "Postback",
+      "path": "docs\\dhanhq.co\\docs\\v2\\postback\\index.md",
+      "size_bytes": 4062,
+      "time": "2026-04-21T19:53:26Z"
+    },
+    "https://dhanhq.co/docs/v2/live-market-feed/": {
+      "title": "Live Market Feed",
+      "path": "docs\\dhanhq.co\\docs\\v2\\live-market-feed\\index.md",
+      "size_bytes": 10432,
+      "time": "2026-04-21T19:53:27Z"
+    },
+    "https://dhanhq.co/docs/v2/authentication/": {
+      "title": "Authentication",
+      "path": "docs\\dhanhq.co\\docs\\v2\\authentication\\index.md",
+      "size_bytes": 17683,
+      "time": "2026-04-21T19:53:27Z"
+    },
+    "https://dhanhq.co/docs/v2/expired-options-data/": {
+      "title": "Expired Options Data",
+      "path": "docs\\dhanhq.co\\docs\\v2\\expired-options-data\\index.md",
+      "size_bytes": 3876,
+      "time": "2026-04-21T19:53:28Z"
+    },
+    "https://dhanhq.co/docs/v2/portfolio/": {
+      "title": "Portfolio and Positions",
+      "path": "docs\\dhanhq.co\\docs\\v2\\portfolio\\index.md",
+      "size_bytes": 6698,
+      "time": "2026-04-21T19:53:28Z"
+    },
+    "https://dhanhq.co/docs/v2/edis/": {
+      "title": "EDIS",
+      "path": "docs\\dhanhq.co\\docs\\v2\\edis\\index.md",
+      "size_bytes": 4672,
+      "time": "2026-04-21T19:53:29Z"
+    },
+    "https://dhanhq.co/docs/v2/traders-control/": {
+      "title": "Trader's Control",
+      "path": "docs\\dhanhq.co\\docs\\v2\\traders-control\\index.md",
+      "size_bytes": 5519,
+      "time": "2026-04-21T19:53:29Z"
+    },
+    "https://dhanhq.co/docs/v2/": {
+      "title": "Introduction",
+      "path": "docs\\dhanhq.co\\docs\\v2\\index.md",
+      "size_bytes": 2528,
+      "time": "2026-04-21T19:53:29Z"
+    },
+    "https://dhanhq.co/docs/v2/annexure/": {
+      "title": "Annexure",
+      "path": "docs\\dhanhq.co\\docs\\v2\\annexure\\index.md",
+      "size_bytes": 6497,
+      "time": "2026-04-21T19:53:30Z"
+    },
+    "https://dhanhq.co/docs/v2/market-quote/": {
+      "title": "Market Quote",
+      "path": "docs\\dhanhq.co\\docs\\v2\\market-quote\\index.md",
+      "size_bytes": 9136,
+      "time": "2026-04-21T19:53:30Z"
+    },
+    "https://dhanhq.co/docs/v2/forever/": {
+      "title": "Forever Order",
+      "path": "docs\\dhanhq.co\\docs\\v2\\forever\\index.md",
+      "size_bytes": 9181,
+      "time": "2026-04-21T19:53:31Z"
+    },
+    "https://dhanhq.co/docs/v2/order-update/": {
+      "title": "Live Order Update",
+      "path": "docs\\dhanhq.co\\docs\\v2\\order-update\\index.md",
+      "size_bytes": 7819,
+      "time": "2026-04-21T19:53:31Z"
+    },
+    "https://dhanhq.co/docs/v2/instruments/": {
+      "title": "Instrument List",
+      "path": "docs\\dhanhq.co\\docs\\v2\\instruments\\index.md",
+      "size_bytes": 3225,
+      "time": "2026-04-21T19:53:33Z"
+    },
+    "https://dhanhq.co/docs/v2/statements/": {
+      "title": "Statement",
+      "path": "docs\\dhanhq.co\\docs\\v2\\statements\\index.md",
+      "size_bytes": 5545,
+      "time": "2026-04-21T19:53:33Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/": {
+      "title": "FAQs on DhanHQ API | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:35Z"
+    },
+    "https://dhanhq.co/docs/v2/historical-data/": {
+      "title": "Historical Data",
+      "path": "docs\\dhanhq.co\\docs\\v2\\historical-data\\index.md",
+      "size_bytes": 11995,
+      "time": "2026-04-21T19:53:35Z"
+    },
+    "https://dhanhq.co/docs/v2/option-chain/": {
+      "title": "Option Chain",
+      "path": "docs\\dhanhq.co\\docs\\v2\\option-chain\\index.md",
+      "size_bytes": 7187,
+      "time": "2026-04-21T19:53:36Z"
+    },
+    "https://dhanhq.co/docs/v2/full-market-depth/": {
+      "title": "Full Market Depth",
+      "path": "docs\\dhanhq.co\\docs\\v2\\full-market-depth\\index.md",
+      "size_bytes": 8846,
+      "time": "2026-04-21T19:53:36Z"
+    },
+    "https://dhanhq.co/docs/v2/annexure": {
+      "title": "Annexure",
+      "path": "docs\\dhanhq.co\\docs\\v2\\annexure.md",
+      "size_bytes": 6497,
+      "time": "2026-04-21T19:53:37Z"
+    },
+    "https://dhanhq.co/docs/v2/instruments": {
+      "title": "Instrument List",
+      "path": "docs\\dhanhq.co\\docs\\v2\\instruments.md",
+      "size_bytes": 3225,
+      "time": "2026-04-21T19:53:37Z"
+    },
+    "https://dhanhq.co/docs/v2/postback": {
+      "title": "Postback",
+      "path": "docs\\dhanhq.co\\docs\\v2\\postback.md",
+      "size_bytes": 4062,
+      "time": "2026-04-21T19:53:38Z"
+    },
+    "https://dhanhq.co/docs/v2/super-order": {
+      "title": "Super Order",
+      "path": "docs\\dhanhq.co\\docs\\v2\\super-order.md",
+      "size_bytes": 12663,
+      "time": "2026-04-21T19:53:38Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/what-types-of-orders-can-i-place-using-dhan-s-apis/": {
+      "title": "What types of orders can I place using Dhan\u2019s APIs? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\what-types-of-orders-can-i-place-using-dhan-s-apis\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:39Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/what-are-the-charges-for-ddpi/": {
+      "title": "What are the charges for DDPI? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\what-are-the-charges-for-ddpi\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:40Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/which-programming-languages-are-compatible-with-dhan-s-apis/": {
+      "title": "Which programming languages are compatible with Dhan's APIs? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\which-programming-languages-are-compatible-with-dhan-s-apis\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:41Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-many-orders-can-i-placed-using-dhan-api/": {
+      "title": "How many orders can I placed using Dhan API? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-many-orders-can-i-placed-using-dhan-api\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:41Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-can-i-get-the-ltp-last-traded-price-of-an-instrument-using-dhan-apis/": {
+      "title": "How can I get the LTP (Last Traded Price) of an instrument using Dhan APIs? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-can-i-get-the-ltp-last-traded-price-of-an-instrument-using-dhan-apis\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:42Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-can-i-place-an-order-using-an-api-access-token/": {
+      "title": "How can I place an order using an API access token? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-can-i-place-an-order-using-an-api-access-token\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:43Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/can-i-place-basket-orders-using-dhan-apis/": {
+      "title": "Can I place basket orders using Dhan APIs? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\can-i-place-basket-orders-using-dhan-apis\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:43Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/does-dhan-offer-statement-retrieval-through-apis/": {
+      "title": "Does Dhan offer statement retrieval through APIs? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\does-dhan-offer-statement-retrieval-through-apis\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:44Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-can-i-connect-my-dhan-account-to-platforms-like-metatrader-excel-or-amibroker/": {
+      "title": "How can I connect my Dhan account to platforms like MetaTrader, Excel, or Amibroker? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-can-i-connect-my-dhan-account-to-platforms-like-metatrader-excel-or-amibroker\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:44Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/which-platforms-can-i-trade-on-by-connecting-my-dhan-account/": {
+      "title": "Which platforms can I trade on by connecting my Dhan account? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\which-platforms-can-i-trade-on-by-connecting-my-dhan-account\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:45Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/what-timeframe-data-is-available-through-dhan-s-historical-data-apis/": {
+      "title": "What timeframe data is available through Dhan\u2019s Historical Data APIs? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\what-timeframe-data-is-available-through-dhan-s-historical-data-apis\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:46Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/can-i-modify-orders-using-dhan-s-api-and-if-so-how-many-modifications-are-permitted-per-order/": {
+      "title": "Can I modify orders using Dhan's API, and if so, how many modifications are permitted per order? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\can-i-modify-orders-using-dhan-s-api-and-if-so-how-many-modifications-are-permitted-per-order\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:46Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/are-data-apis-available-for-all-exchanges-and-segments-on-dhan/": {
+      "title": "Are Data APIs available for all exchanges and segments on Dhan? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\are-data-apis-available-for-all-exchanges-and-segments-on-dhan\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:47Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-can-i-access-live-market-data-through-dhan/": {
+      "title": "How can I access live market data through Dhan? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-can-i-access-live-market-data-through-dhan\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:48Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-to-access-dhan-api/": {
+      "title": "How to access Dhan API? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-to-access-dhan-api\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:48Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/is-the-historical-data-from-dhan-s-data-api-adjusted-for-corporate-actions-like-bonuses-and-splits/": {
+      "title": "Is the Historical Data from Dhan\u2019s Data API adjusted for corporate actions like bonuses and splits? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\is-the-historical-data-from-dhan-s-data-api-adjusted-for-corporate-actions-like-bonuses-and-splits\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:49Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/are-there-additional-costs-when-trading-via-dhan-s-partner-platforms/": {
+      "title": "Are there additional costs when trading via Dhan's partner platforms? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\are-there-additional-costs-when-trading-via-dhan-s-partner-platforms\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:50Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-can-i-cancel-my-dhanhq-data-api-subscription/": {
+      "title": "How can I cancel my DhanHQ Data API subscription? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-can-i-cancel-my-dhanhq-data-api-subscription\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:50Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-can-i-check-my-api-access-status-for-dhanhq/": {
+      "title": "How can I check my API access status for DhanHQ? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-can-i-check-my-api-access-status-for-dhanhq\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:51Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-does-the-dhanhq-data-api-subscription-work/": {
+      "title": "How does the DhanHQ Data API subscription work? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-does-the-dhanhq-data-api-subscription-work\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:52Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-many-instruments-can-i-track-using-dhan-s-live-market-feed/": {
+      "title": "How many instruments can I track using Dhan\u2019s Live Market Feed? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-many-instruments-can-i-track-using-dhan-s-live-market-feed\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:52Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/what-is-the-maximum-validity-of-an-api-access-token-in-dhan-apis/": {
+      "title": "What is the maximum validity of an API Access Token in Dhan APIs? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\what-is-the-maximum-validity-of-an-api-access-token-in-dhan-apis\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:53Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/how-can-i-check-the-status-of-my-data-api-subscription/": {
+      "title": "How can I check the status of my Data API subscription? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\how-can-i-check-the-status-of-my-data-api-subscription\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:54Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/what-types-of-apis-does-dhan-offer/": {
+      "title": "What types of APIs does Dhan offer? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\what-types-of-apis-does-dhan-offer\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:54Z"
+    },
+    "https://dhan.co/support/platforms/dhanhq-api/what-are-the-api-rate-limits-for-dhan/": {
+      "title": "What are the API rate limits for Dhan? | Dhan Support",
+      "path": "support\\dhan.co\\support\\platforms\\dhanhq-api\\what-are-the-api-rate-limits-for-dhan\\index.md",
+      "size_bytes": 5992,
+      "time": "2026-04-21T19:53:55Z"
+    },
+    "https://dhanhq.co/docs/v2/live-market-feed": {
+      "title": "Live Market Feed",
+      "path": "docs\\dhanhq.co\\docs\\v2\\live-market-feed.md",
+      "size_bytes": 10432,
+      "time": "2026-04-21T19:53:56Z"
+    }
+  },
+  "failed": {
+    "https://dhanhq.co/docs/v2/20-market-depth/": {
+      "status": null,
+      "time": "2026-04-21T19:53:32Z"
+    }
+  },
+  "openapi_spec": {
+    "url": "https://api.dhan.co/v2/v3/api-docs",
+    "endpoint_count": 33,
+    "captured_via": "direct"
+  },
+  "sdk_readme": "https://raw.githubusercontent.com/dhan-oss/DhanHQ-py/main/README.md"
+}

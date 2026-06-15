@@ -1,0 +1,48 @@
+# === Secrets / env (NEVER commit) ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# === Python (worker/) ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# === Worker runtime data / logs / caches / artifacts ===
+worker/data/
+worker/logs/
+worker/.cache/
+worker/artifacts/
+artifacts/
+data/
+logs/
+*.log
+
+# === Node / Next.js (web/) ===
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.vercel/
+node_modules/
+.vercel/
+
+# === Reference course material (large binaries: installers, wheels, pyc, logs) ===
+dhan/Dhan API Sessions/
+
+# === OS / editor ===
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

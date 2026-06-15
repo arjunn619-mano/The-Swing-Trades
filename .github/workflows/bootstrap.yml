@@ -1,0 +1,39 @@
+name: Bootstrap (one-time setup)
+
+# Run this manually ONCE (and after schema/strategy changes) before the EOD Scan cron:
+#   init DB schema + strategies -> refresh universe -> backfill historical prices.
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "Historical backfill lookback (calendar days)"
+        required: false
+        default: "400"
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
+      DHAN_PIN: ${{ secrets.DHAN_PIN }}
+      DHAN_TOTP_SECRET: ${{ secrets.DHAN_TOTP_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install worker
+        run: pip install ./worker
+
+      - name: Init DB (schema + strategies)
+        working-directory: worker
+        run: python scripts/init_db.py
+
+      - name: Refresh universe
+        working-directory: worker
+        run: python scripts/refresh_universe.py
+
+      - name: Backfill historical prices
+        working-directory: worker
+        run: python scripts/backfill.py ${{ inputs.lookback_days }}

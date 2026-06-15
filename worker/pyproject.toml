@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swing-trades-worker"
+version = "0.1.0"
+description = "The Swing Trades — end-of-day NSE/BSE screener worker"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+    "psycopg[binary]>=3.1",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+    "pyotp>=2.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["swing_trades*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

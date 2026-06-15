@@ -1,0 +1,47 @@
+# Strategy parameters — tweak here without touching code (Rule: params are fixed a priori,
+# never tuned on the data they're evaluated on). See Planning Pack/05_STRATEGIES.md.
+
+strategies:
+  bullish_vol_rsi_candle:
+    display_name: "Bottom Breakout"
+    description: "Volume surge + low RSI + bullish candle (oversold reversal setup)."
+    active: true
+    params:
+      volume_lookback_days: 14
+      volume_ratio_min: 1.5        # today's volume >= 1.5x the prior 14-day average
+      volume_min_absolute: 50000   # hard liquidity floor
+      rsi_period: 14
+      rsi_max: 50                  # RSI(14) < 50
+      require_candle_pattern: true
+      min_candle_score: 1
+      prefer_exchange: "NSE"
+
+  top_breakout:
+    display_name: "Top Breakout"
+    description: "Volume surge + high RSI (continuation) + bullish candle."
+    active: true
+    params:
+      volume_lookback_days: 14
+      volume_ratio_min: 1.5
+      volume_min_absolute: 50000
+      rsi_period: 14
+      rsi_min: 55                  # RSI(14) > 55
+      require_candle_pattern: true
+      min_candle_score: 1
+      prefer_exchange: "NSE"
+
+  supertrend_buy:
+    display_name: "Supertrend Buy"
+    description: "ATR-based Supertrend flip from short to long, with volume confirmation."
+    active: true
+    params:
+      atr_period: 10
+      atr_multiplier: 3.0
+      require_volume_confirmation: true
+      volume_lookback_days: 14
+      volume_ratio_min: 1.5
+      volume_min_absolute: 50000
+      prefer_exchange: "NSE"
+
+# Default observation window for every tracker entry (trading days). Configurable per Rule 8 / M5.
+tracking_horizon_days: 100
