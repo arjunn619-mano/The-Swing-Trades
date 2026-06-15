@@ -10,6 +10,8 @@ CSV = (
     "11536,NSE,E,INE467B01029,EQUITY,TCS,EQ,1,Y\n"
     "49081,NSE,D,INE467B01029,OPTIDX,TCS-FUT,,,N\n"
     "540001,BSE,E,INE999X01010,EQUITY,BSEONLY,A,1,N\n"
+    "1199,NSE,E,INE777Z01011,EQUITY,SGBTEST,SG,1,N\n"     # Sovereign Gold Bond -> excluded
+    "540999,BSE,E,INE888Z01022,EQUITY,BONDTEST,F,1,N\n"   # BSE F (debt) -> excluded
 )
 
 
@@ -42,6 +44,17 @@ def test_exclude_asm_gsm_flag():
     rows = I.equity_rows(I.parse_instrument_csv(CSV))
     uni = {u.isin: u for u in I.resolve_universe(rows, exclude_asm_gsm=True)}
     assert "INE467B01029" not in uni  # TCS flagged ASM/GSM = Y
+
+
+def test_excludes_non_equity_series():
+    uni = {u.isin for u in I.resolve_universe(I.equity_rows(I.parse_instrument_csv(CSV)))}
+    assert "INE777Z01011" not in uni  # Sovereign Gold Bond (NSE SG)
+    assert "INE888Z01022" not in uni  # BSE F group (debt)
+
+
+def test_empty_allowed_series_keeps_all():
+    isins = {r.isin for r in I.equity_rows(I.parse_instrument_csv(CSV), allowed_series={})}
+    assert "INE777Z01011" in isins  # no series filter -> SGB kept
 
 
 def test_missing_columns_raise():
