@@ -54,8 +54,15 @@ class DhanDataClient:
                 )
                 resp.raise_for_status()
                 return resp.json()
-            except Exception as err:  # network / HTTP / decode — retry with backoff
+            except Exception as err:  # network / HTTP / decode
+                resp_obj = getattr(err, "response", None)
+                status = getattr(resp_obj, "status_code", None)
+                detail = getattr(resp_obj, "text", None)
+                if detail:  # surface the API's error body (e.g. WHY a 400 happened)
+                    err = RuntimeError(f"{err} :: {str(detail)[:400]}")
                 last_err = err
+                if status is not None and 400 <= status < 500:
+                    break  # client error — retrying won't fix it
                 if attempt < self._retries - 1:
                     self._sleep(self._backoff * (attempt + 1))
         assert last_err is not None

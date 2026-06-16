@@ -129,6 +129,38 @@ def test_full_snapshot_handed_to_sink():
     assert any(r["volume"] == 0 for r in captured["rows"])  # dead strike kept for the archive
 
 
+class FlakyChainClient:
+    """Serves CHAIN for the RELIANCE key; raises for any underlying in `fail_scrips`."""
+
+    def __init__(self, chains, fail_scrips=()):
+        self.chains = chains
+        self.fail_scrips = set(fail_scrips)
+        self.calls = []
+
+    def option_chain(self, scrip, seg, expiry):
+        self.calls.append((scrip, seg, expiry))
+        if scrip in self.fail_scrips:
+            raise RuntimeError("HTTP 400 :: simulated bad request")
+        return self.chains.get((scrip, seg, expiry), {"data": {"oc": {}}})
+
+
+def test_chain_error_is_isolated_not_fatal():
+    store = _store()
+    # a second underlying (TCS) whose chain call will fail
+    store.add_contract(OptionContractRef(
+        id=21, security_id="2100", underlying_symbol="TCS", underlying_security_id="11536",
+        exchange="NSE", instrument_type="OPTSTK", expiry_date=EXPIRY, strike=3500.0,
+        option_type="CE", lot_size=175,
+    ))
+    client = FlakyChainClient({(2885, "NSE_EQ", "2025-08-28"): CHAIN}, fail_scrips={11536})
+    summary = run_option_scan(TRADE_DATE, store=store, dhan_client=client,
+                              volume_threshold=100_000, sleep=lambda _s: None)
+    assert summary.status == "success"     # the bad underlying did not kill the run
+    assert summary.errors >= 1
+    assert summary.sample_errors           # captured the reason for the artifact
+    assert summary.enrolled == 2           # RELIANCE 1400 CE + 1420 PE still enrolled
+
+
 def test_non_trading_day_writes_nothing():
     store = _store()
     summary = run_option_scan(dt.date(2025, 8, 17), store=store, dhan_client=_client(),

@@ -42,6 +42,8 @@ class OptionScanSummary:
     observed: int = 0
     expired: int = 0
     snapshot_rows: int = 0
+    errors: int = 0
+    sample_errors: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -117,8 +119,17 @@ def run_option_scan(
             expiries = sorted(e for e in by_expiry if e >= trade_date)[:max_expiries_per_underlying]
             for exp in expiries:
                 strike_index = by_expiry[exp]
-                raw = dhan_client.option_chain(scrip, seg, exp.isoformat())
-                snap = parse_option_chain(raw, exp.isoformat(), underlying_scrip=scrip, underlying_seg=seg)
+                try:
+                    raw = dhan_client.option_chain(scrip, seg, exp.isoformat())
+                    snap = parse_option_chain(raw, exp.isoformat(), underlying_scrip=scrip, underlying_seg=seg)
+                except Exception as err:  # one bad underlying/expiry must not kill the whole scan
+                    summary.errors += 1
+                    if len(summary.sample_errors) < 5:
+                        summary.sample_errors.append(f"{rep.underlying_symbol} {seg} {exp.isoformat()}: {str(err)[:300]}")
+                    _log(f"option_chain failed {scrip}/{seg}/{exp}: {err}")
+                    if request_interval and sleep:
+                        sleep(request_interval)
+                    continue
                 summary.chains_fetched += 1
                 for q in snap.quotes:
                     ref: Optional[OptionContractRef] = strike_index.get((round(q.strike, 2), q.option_type))
