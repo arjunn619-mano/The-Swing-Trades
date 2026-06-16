@@ -136,3 +136,64 @@ CREATE INDEX IF NOT EXISTS idx_scan_signals_run ON scan_signals (scan_run_id);
 CREATE INDEX IF NOT EXISTS idx_scan_signals_strategy_date ON scan_signals (strategy_id, trade_date);
 CREATE INDEX IF NOT EXISTS idx_tracker_obs_entry ON tracker_observations (tracker_entry_id);
 CREATE INDEX IF NOT EXISTS idx_tracker_entries_status ON tracker_entries (status);
+
+-- === Options module (Planning Pack/11_OPTIONS_MODULE.md) ===
+-- Catalog of every index/stock option contract from the instrument master.
+CREATE TABLE IF NOT EXISTS option_contracts (
+    id                     BIGSERIAL PRIMARY KEY,
+    security_id            TEXT UNIQUE NOT NULL,
+    underlying_symbol      TEXT NOT NULL,                 -- e.g. RELIANCE, NIFTY
+    underlying_security_id TEXT,
+    exchange               TEXT NOT NULL,                 -- NSE | BSE
+    instrument_type        TEXT NOT NULL,                 -- OPTIDX | OPTSTK
+    expiry_date            DATE NOT NULL,
+    strike                 NUMERIC(18,4) NOT NULL,
+    option_type            TEXT NOT NULL,                 -- CE | PE
+    lot_size               INTEGER,
+    display_name           TEXT,
+    active                 BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One tracked contract; enrolled the first day its volume > 1L (Planning Pack 11). Entry
+-- premium permanent (mirrors Rule 3). Deleted on expiry — full history lives in the Parquet archive.
+CREATE TABLE IF NOT EXISTS option_tracker (
+    id              BIGSERIAL PRIMARY KEY,
+    contract_id     BIGINT UNIQUE NOT NULL REFERENCES option_contracts(id) ON DELETE CASCADE,
+    first_seen_date DATE NOT NULL,
+    entry_ltp       NUMERIC(18,4) NOT NULL,               -- permanent
+    entry_iv        NUMERIC(12,4),
+    entry_oi        BIGINT,
+    expiry_date     DATE NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'active',       -- active | expired
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Append-only per-day curve for a tracked contract. Tracked independently (no underlying
+-- price); return_vs_entry is the option's own premium return from the add-date.
+CREATE TABLE IF NOT EXISTS option_observations (
+    id              BIGSERIAL PRIMARY KEY,
+    tracker_id      BIGINT NOT NULL REFERENCES option_tracker(id) ON DELETE CASCADE,
+    trade_date      DATE NOT NULL,
+    ltp             NUMERIC(18,4),
+    open            NUMERIC(18,4),
+    high            NUMERIC(18,4),
+    low             NUMERIC(18,4),
+    close           NUMERIC(18,4),
+    volume          BIGINT,
+    oi              BIGINT,
+    oi_change_pct   NUMERIC(12,4),
+    iv              NUMERIC(12,4),
+    delta           NUMERIC(12,6),
+    theta           NUMERIC(12,6),
+    gamma           NUMERIC(12,6),
+    vega            NUMERIC(12,6),
+    days_to_expiry  INTEGER,
+    return_vs_entry NUMERIC(12,6),
+    UNIQUE (tracker_id, trade_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_option_contracts_underlying ON option_contracts (underlying_symbol);
+CREATE INDEX IF NOT EXISTS idx_option_contracts_expiry ON option_contracts (expiry_date);
+CREATE INDEX IF NOT EXISTS idx_option_tracker_status ON option_tracker (status);
+CREATE INDEX IF NOT EXISTS idx_option_observations_tracker ON option_observations (tracker_id);

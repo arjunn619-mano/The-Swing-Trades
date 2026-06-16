@@ -55,3 +55,20 @@ class PriceBar:
     low: float
     close: float
     volume: int
+
+
+@dataclass(frozen=True)
+class OptionContract:
+    """One option contract (index or stock) from the instrument master.
+    Planning Pack/11_OPTIONS_MODULE.md (Phase O1)."""
+
+    security_id: str
+    underlying_symbol: str            # e.g. RELIANCE, NIFTY
+    underlying_security_id: Optional[str]
+    exchange: str                     # NSE | BSE
+    instrument_type: str              # OPTIDX | OPTSTK
+    expiry_date: _dt.date
+    strike: float
+    option_type: str                  # CE | PE
+    lot_size: Optional[int] = None
+    display_name: Optional[str] = None

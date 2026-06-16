@@ -17,6 +17,9 @@ EXPECTED_TABLES = (
     "tracker_observations",
     "strategy_metrics",
     "trading_calendar",
+    "option_contracts",
+    "option_tracker",
+    "option_observations",
 )
 
 

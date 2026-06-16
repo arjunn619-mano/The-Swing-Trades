@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from ..data_layer.models import PriceBar, UniverseInstrument
+from ..data_layer.models import OptionContract, PriceBar, UniverseInstrument
 
 
 def upsert_instruments(
@@ -69,6 +69,45 @@ def upsert_price_history(conn, instrument_id: int, bars: Iterable[PriceBar]) -> 
             ON CONFLICT (instrument_id, trade_date) DO UPDATE SET
                 open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
                 close = EXCLUDED.close, volume = EXCLUDED.volume
+            """,
+            rows,
+        )
+    conn.commit()
+    return len(rows)
+
+
+def upsert_option_contracts(conn, contracts: Iterable[OptionContract]) -> int:
+    """Bulk-upsert the option catalog keyed on security_id (Planning Pack 11, Phase O1).
+    Idempotent; refreshes the mutable fields (lot_size/display_name) on conflict."""
+    rows = [
+        (
+            c.security_id, c.underlying_symbol, c.underlying_security_id, c.exchange,
+            c.instrument_type, c.expiry_date, c.strike, c.option_type, c.lot_size, c.display_name,
+        )
+        for c in contracts
+    ]
+    if not rows:
+        return 0
+    with conn.cursor() as cur:
+        cur.executemany(
+            """
+            INSERT INTO option_contracts
+                (security_id, underlying_symbol, underlying_security_id, exchange,
+                 instrument_type, expiry_date, strike, option_type, lot_size, display_name,
+                 active, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, now())
+            ON CONFLICT (security_id) DO UPDATE SET
+                underlying_symbol      = EXCLUDED.underlying_symbol,
+                underlying_security_id = EXCLUDED.underlying_security_id,
+                exchange               = EXCLUDED.exchange,
+                instrument_type        = EXCLUDED.instrument_type,
+                expiry_date            = EXCLUDED.expiry_date,
+                strike                 = EXCLUDED.strike,
+                option_type            = EXCLUDED.option_type,
+                lot_size               = EXCLUDED.lot_size,
+                display_name           = EXCLUDED.display_name,
+                active                 = TRUE,
+                updated_at             = now()
             """,
             rows,
         )

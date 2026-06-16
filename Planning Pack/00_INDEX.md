@@ -25,6 +25,7 @@ A multi-strategy **end-of-day** NSE/BSE stock screener with a **100-trading-day*
 | 08 | **CLAUDE_CODE_BOOTSTRAP** | The build kickoff prompt |
 | 09 | **README** | The project's README (personal reference) |
 | 10 | **CRITICAL_REVIEW** | Pre-build critique + the adopted improvements (read this to see what changed and why) |
+| 11 | **OPTIONS_MODULE** | Spec for the EOD stock-options tracker + Parquet archive (post-v1 addition) |
 
 ## Locked decisions (the spine)
 - **Data source:** Dhan API — instrument master CSV (universe), Historical Data API (backfill), bulk Market Quote `/marketfeed/quote` (daily OHLCV incl. volume). No NSE scraping, no yfinance, no bhavcopy.
