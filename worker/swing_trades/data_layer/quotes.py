@@ -37,6 +37,44 @@ def batch_instruments(
     return batches
 
 
+def batch_option_refs(refs, max_per_call: int = MAX_INSTRUMENTS_PER_CALL) -> list[dict[str, list]]:
+    """Group option contracts into /marketfeed/quote bodies (<=1000 ids each), keyed by the
+    F&O segment (NSE_FNO / BSE_FNO). The quote endpoint is NOT rate-limited like the option
+    chain, so we use it to pull volume/OI/LTP for the whole option universe cheaply."""
+    batches: list[dict[str, list]] = []
+    current: dict[str, list] = {}
+    count = 0
+    for ref in refs:
+        if count >= max_per_call:
+            batches.append(current)
+            current, count = {}, 0
+        seg = "BSE_FNO" if getattr(ref, "exchange", "NSE") == "BSE" else "NSE_FNO"
+        current.setdefault(seg, []).append(_as_id(ref.security_id))
+        count += 1
+    if current:
+        batches.append(current)
+    return batches
+
+
+def parse_option_quote_response(payload: dict) -> dict[str, dict]:
+    """Map {data: {SEGMENT: {securityId: {...}}}} to {security_id: {ltp, ohlc, volume, oi}}.
+    The full quote packet carries `oi` for derivatives (the option chain isn't needed for it)."""
+    out: dict[str, dict] = {}
+    for _segment, instruments in (payload.get("data") or {}).items():
+        for sec_id, q in instruments.items():
+            ohlc = q.get("ohlc") or {}
+            out[str(sec_id)] = {
+                "ltp": float(q.get("last_price", ohlc.get("close", 0)) or 0),
+                "open": float(ohlc.get("open", 0) or 0),
+                "high": float(ohlc.get("high", 0) or 0),
+                "low": float(ohlc.get("low", 0) or 0),
+                "close": float(ohlc.get("close", 0) or 0),
+                "volume": int(q.get("volume", 0) or 0),
+                "oi": int(q.get("oi", 0) or 0),
+            }
+    return out
+
+
 def parse_quote_response(payload: dict, trade_date: _dt.date) -> dict[str, PriceBar]:
     """Map {data: {SEGMENT: {securityId: {...}}}} to {security_id: PriceBar} for `trade_date`."""
     out: dict[str, PriceBar] = {}
