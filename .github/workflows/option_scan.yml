@@ -5,9 +5,9 @@ name: EOD Option Scan
 # you're happy with it (observation-first). The script skips weekends/NSE holidays itself.
 on:
   workflow_dispatch: {}
-  # schedule:
-  #   # 14:30 UTC = 8:00 PM IST, Mon–Fri (after the 7:30 PM equity scan).
-  #   - cron: "30 14 * * 1-5"
+  schedule:
+    # 12:30 UTC = 6:00 PM IST, Mon–Fri (after the 5 PM equity scan; EOD data settled).
+    - cron: "30 12 * * 1-5"
 
 jobs:
   option-scan:
