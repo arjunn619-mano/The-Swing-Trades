@@ -109,6 +109,7 @@ export function Nav() {
   const links = [
     { href: "/", label: "Overview" },
     { href: "/tracker", label: "Tracker" },
+    { href: "/options", label: "Options" },
     { href: "/new-listings", label: "New Listings" },
     { href: "/strategies", label: "Strategies" },
     { href: "/starred", label: "Starred" },

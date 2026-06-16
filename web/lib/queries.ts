@@ -68,6 +68,30 @@ export type StarredRow = {
   lastClose: number | null;
 };
 
+export type OptionRow = {
+  contractId: number;
+  underlying: string;
+  exchange: string;
+  instrumentType: string; // OPTIDX | OPTSTK
+  expiry: string;
+  strike: number | null;
+  optionType: string; // CE | PE
+  lotSize: number | null;
+  firstSeen: string;
+  entryLtp: number | null;
+  currentLtp: number | null;
+  returnPct: number | null;
+  oi: number | null;
+  oiChangePct: number | null;
+  volume: number | null;
+  iv: number | null;
+  delta: number | null;
+  theta: number | null;
+  gamma: number | null;
+  vega: number | null;
+  daysToExpiry: number | null;
+};
+
 const NEW_LISTING_MAX_BARS = 45;
 
 export async function getOverview(): Promise<Overview> {
@@ -231,6 +255,52 @@ export async function getStarredIds(): Promise<number[]> {
     return rows.map((r) => r.instrument_id as number);
   } catch {
     return []; // table may not exist until the first star is added
+  }
+}
+
+export async function getOptionTracker(): Promise<OptionRow[]> {
+  if (!sql) return [];
+  try {
+    const rows = await sql`
+      SELECT t.contract_id, c.underlying_symbol, c.exchange, c.instrument_type, c.expiry_date,
+             c.strike, c.option_type, c.lot_size, t.first_seen_date, t.entry_ltp,
+             o.ltp AS current_ltp, o.return_vs_entry, o.oi, o.oi_change_pct, o.volume,
+             o.iv, o.delta, o.theta, o.gamma, o.vega, o.days_to_expiry
+      FROM option_tracker t
+      JOIN option_contracts c ON c.id = t.contract_id
+      LEFT JOIN LATERAL (
+        SELECT ltp, return_vs_entry, oi, oi_change_pct, volume, iv, delta, theta, gamma, vega, days_to_expiry
+        FROM option_observations WHERE tracker_id = t.id ORDER BY trade_date DESC LIMIT 1
+      ) o ON TRUE
+      WHERE t.status = 'active'
+      ORDER BY t.first_seen_date DESC, c.underlying_symbol, c.strike
+      LIMIT 5000`;
+    return rows.map((r) => ({
+      contractId: r.contract_id,
+      underlying: r.underlying_symbol,
+      exchange: r.exchange,
+      instrumentType: r.instrument_type,
+      expiry: r.expiry_date,
+      strike: num(r.strike),
+      optionType: r.option_type,
+      lotSize: r.lot_size ?? null,
+      firstSeen: r.first_seen_date,
+      entryLtp: num(r.entry_ltp),
+      currentLtp: num(r.current_ltp),
+      returnPct: num(r.return_vs_entry),
+      oi: num(r.oi),
+      oiChangePct: num(r.oi_change_pct),
+      volume: num(r.volume),
+      iv: num(r.iv),
+      delta: num(r.delta),
+      theta: num(r.theta),
+      gamma: num(r.gamma),
+      vega: num(r.vega),
+      daysToExpiry: r.days_to_expiry ?? null,
+    }));
+  } catch (e) {
+    // option_* tables may not exist until the first catalog refresh / option scan runs
+    return [];
   }
 }
 
