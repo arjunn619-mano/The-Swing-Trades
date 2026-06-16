@@ -72,3 +72,38 @@ class OptionContract:
     option_type: str                  # CE | PE
     lot_size: Optional[int] = None
     display_name: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class OptionQuote:
+    """One side (CE or PE) of one strike from an /optionchain snapshot (Phase O2)."""
+
+    strike: float
+    option_type: str                  # CE | PE
+    last_price: float                 # premium LTP
+    oi: int
+    previous_oi: int
+    volume: int
+    implied_volatility: Optional[float] = None
+    delta: Optional[float] = None
+    theta: Optional[float] = None
+    gamma: Optional[float] = None
+    vega: Optional[float] = None
+    previous_close: Optional[float] = None
+
+    @property
+    def oi_change_pct(self) -> Optional[float]:
+        if self.previous_oi:
+            return (self.oi - self.previous_oi) / self.previous_oi
+        return None
+
+
+@dataclass(frozen=True)
+class OptionChainSnapshot:
+    """A parsed /optionchain response for one (underlying, expiry)."""
+
+    expiry: str                       # YYYY-MM-DD
+    underlying_last_price: Optional[float]
+    quotes: list["OptionQuote"]
+    underlying_scrip: Optional[int] = None
+    underlying_seg: Optional[str] = None

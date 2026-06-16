@@ -83,3 +83,20 @@ class DhanDataClient:
     def quote(self, instruments_by_segment: dict[str, list]) -> dict:
         """Raw /marketfeed/quote response. Pair with quotes.parse_quote_response(resp, date)."""
         return self._post("/marketfeed/quote", instruments_by_segment)
+
+    def option_expiry_list(self, underlying_scrip, underlying_seg: str) -> list[str]:
+        """Active expiry dates (YYYY-MM-DD) for an underlying (Phase O2)."""
+        body = {"UnderlyingScrip": int(underlying_scrip), "UnderlyingSeg": underlying_seg}
+        resp = self._post("/optionchain/expirylist", body)
+        return [str(x) for x in (resp.get("data") or [])]
+
+    def option_chain(self, underlying_scrip, underlying_seg: str, expiry: str) -> dict:
+        """Raw /optionchain response for one (underlying, expiry). Pair with
+        option_chain.parse_option_chain. Dhan throttles this to 1 request / 3s — the caller
+        (the option scan) spaces the calls; this client stays thin (no order surface)."""
+        body = {
+            "UnderlyingScrip": int(underlying_scrip),
+            "UnderlyingSeg": underlying_seg,
+            "Expiry": expiry,
+        }
+        return self._post("/optionchain", body)
