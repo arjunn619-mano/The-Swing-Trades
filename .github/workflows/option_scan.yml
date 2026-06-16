@@ -1,0 +1,48 @@
+name: EOD Option Scan
+
+# Options module (Planning Pack 11). Kept SEPARATE from the equity EOD scan so a hiccup here
+# never affects it. Manual-only by default; uncomment the schedule below to run nightly once
+# you're happy with it (observation-first). The script skips weekends/NSE holidays itself.
+on:
+  workflow_dispatch: {}
+  # schedule:
+  #   # 14:30 UTC = 8:00 PM IST, Mon–Fri (after the 7:30 PM equity scan).
+  #   - cron: "30 14 * * 1-5"
+
+jobs:
+  option-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # publish the Parquet archive to a GitHub Release
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
+      DHAN_PIN: ${{ secrets.DHAN_PIN }}
+      DHAN_TOTP_SECRET: ${{ secrets.DHAN_TOTP_SECRET }}
+      ALERT_TELEGRAM_BOT_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
+      ALERT_TELEGRAM_CHAT_ID: ${{ secrets.ALERT_TELEGRAM_CHAT_ID }}
+      OPTION_ARCHIVE_UPLOAD: "1"
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # authenticates the `gh` CLI for the upload
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install worker
+        run: pip install ./worker
+
+      - name: Refresh option catalog (also creates the option tables on first run)
+        working-directory: worker
+        run: python scripts/refresh_option_catalog.py
+
+      - name: Run EOD option scan (enroll vol>1L, observe, expire, archive)
+        working-directory: worker
+        run: python scripts/run_option_scan.py
+
+      - name: Upload health artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: option-scan-${{ github.run_id }}
+          path: worker/artifacts/
+          if-no-files-found: warn
