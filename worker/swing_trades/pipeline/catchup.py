@@ -11,6 +11,16 @@ from typing import Optional
 from ..utils.timeutils import is_trading_day, trading_days_between
 
 
+MARKET_SETTLE_IST = _dt.time(16, 0)  # NSE closes 15:30 IST; allow ~30 min for EOD data to settle
+
+
+def eod_ready(now: _dt.datetime) -> bool:
+    """True once today's EOD data should be settled (now >= 16:00 IST). Before that, scanning
+    'today' would capture pre-/intraday (stale) prices and wrongly mark the day complete, so the
+    daily runner skips it. `now` is an IST-aware datetime (timeutils.now_ist())."""
+    return now.time() >= MARKET_SETTLE_IST
+
+
 def should_run_today(today: _dt.date, already_done_today: bool) -> bool:
     return is_trading_day(today) and not already_done_today
 

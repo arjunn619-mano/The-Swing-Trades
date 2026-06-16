@@ -17,7 +17,7 @@ from swing_trades.config.strategies_loader import load_tracking_horizon_days  # 
 from swing_trades.data_layer.dhan_auth import generate_access_token  # noqa: E402
 from swing_trades.data_layer.dhan_client import DhanDataClient  # noqa: E402
 from swing_trades.db.connection import connection  # noqa: E402
-from swing_trades.pipeline.catchup import should_run_today, trading_gap  # noqa: E402
+from swing_trades.pipeline.catchup import eod_ready, should_run_today, trading_gap  # noqa: E402
 from swing_trades.pipeline.scan import run_scan  # noqa: E402
 from swing_trades.pipeline.store import PostgresStore  # noqa: E402
 from swing_trades.utils import timeutils  # noqa: E402
@@ -28,11 +28,19 @@ from swing_trades.utils.logging_setup import setup_logging  # noqa: E402
 def main() -> None:
     settings = load_settings()
     logger = setup_logging("logs")
-    trade_date = timeutils.today_ist()
+    now = timeutils.now_ist()
+    trade_date = now.date()
 
     if not timeutils.is_trading_day(trade_date):
         logger.info(f"{trade_date} is not a trading day; nothing to do.")
         print(json.dumps({"trade_date": trade_date.isoformat(), "status": "skipped_non_trading_day"}))
+        return
+
+    if not eod_ready(now):
+        # Before the EOD-settle time, a 'today' scan would store stale pre-/intraday prices and
+        # mark the day complete (blocking the real post-close scan). Skip; the 5 PM cron handles it.
+        logger.info(f"{trade_date}: EOD not settled (now {now:%H:%M} IST, need >= 16:00); skipping.")
+        print(json.dumps({"trade_date": trade_date.isoformat(), "status": "before_market_close"}))
         return
 
     configs = load_strategy_configs()

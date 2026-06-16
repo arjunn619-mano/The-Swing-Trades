@@ -2,9 +2,15 @@ name: EOD Scan
 
 on:
   schedule:
-    # 14:00 UTC = 7:30 PM IST, Mon–Fri. The script still skips NSE holidays itself.
-    - cron: "0 14 * * 1-5"
-  workflow_dispatch: {}
+    # 11:30 UTC = 5:00 PM IST, Mon–Fri (NSE closes 3:30 PM; EOD data is settled by 5). The
+    # runner also refuses to scan 'today' before 16:00 IST and skips NSE holidays itself.
+    - cron: "30 11 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      rescan_today:
+        description: "Reset & re-scan today (use if today was scanned pre-close on stale prices)"
+        type: boolean
+        default: false
 
 # Prerequisite (run once via the "Bootstrap" workflow): init DB + refresh universe + backfill.
 jobs:
@@ -29,9 +35,14 @@ jobs:
         working-directory: worker
         run: python scripts/refresh_universe.py
 
-      - name: Run EOD scan (catchup-aware, idempotent)
+      - name: Run EOD scan (catchup-aware; or reset+rescan today)
         working-directory: worker
-        run: python scripts/run_scan_if_needed.py
+        run: |
+          if [ "${{ inputs.rescan_today }}" = "true" ]; then
+            python scripts/rescan_today.py
+          else
+            python scripts/run_scan_if_needed.py
+          fi
 
       - name: Upload health artifact
         if: always()
