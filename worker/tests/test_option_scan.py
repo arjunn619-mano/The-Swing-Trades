@@ -1,6 +1,8 @@
 import datetime as dt
 
-from swing_trades.pipeline.option_scan import run_option_scan
+import pytest
+
+from swing_trades.pipeline.option_scan import OptionScanError, run_option_scan
 from swing_trades.pipeline.option_store import FakeOptionStore, OptionContractRef
 
 TRADE_DATE = dt.date(2025, 8, 18)   # Monday, a trading day
@@ -131,6 +133,29 @@ def test_chain_enrich_failure_is_isolated():
     assert summary.enrolled == 2                      # enrolled from quoted volume
     assert summary.errors >= 1
     assert store.observations[(11, TRADE_DATE)]["iv"] is None  # no Greeks, but tracked
+
+
+class RateLimitedClient:
+    def __init__(self):
+        self.calls = 0
+
+    def quote(self, batch):
+        self.calls += 1
+        raise RuntimeError("429 Client Error: Too Many Requests :: {\"805\":\"Too many requests\"}")
+
+
+def test_quote_rate_limit_aborts_fast():
+    store = FakeOptionStore()
+    for i in range(2001):  # 2001 contracts -> 3 quote batches (1000/call)
+        store.add_contract(_ref(1000 + i, str(10000 + i), 100.0 + i, "CE"))
+    client = RateLimitedClient()
+    with pytest.raises(OptionScanError):
+        run_option_scan(TRADE_DATE, store=store, dhan_client=client, quote_interval=0,
+                        request_interval=0, rate_limit_cooldown=0, max_consecutive_rate_limits=3,
+                        sleep=lambda _s: None)
+    # circuit-breaker: aborted after 3 consecutive 429s instead of hammering all ~3 batches
+    assert client.calls == 3
+    assert store.count_tracked() == 0   # nothing enrolled on a rate-limited run
 
 
 def test_expired_contract_is_deleted():

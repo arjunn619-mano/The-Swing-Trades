@@ -72,14 +72,21 @@ def _note_error(summary: OptionScanSummary, label: str, err: Exception) -> None:
         summary.sample_errors.append(f"{label}: {str(err)[:300]}")
 
 
+def _is_rate_limited(err: Exception) -> bool:
+    s = str(err).lower()
+    return "429" in s or "too many requests" in s or '"805"' in s
+
+
 def run_option_scan(
     trade_date: _dt.date,
     *,
     store: OptionScanStore,
     dhan_client,
     volume_threshold: int = VOLUME_THRESHOLD,
-    quote_interval: float = 0.5,
+    quote_interval: float = 1.0,
     request_interval: float = 3.0,
+    rate_limit_cooldown: float = 20.0,
+    max_consecutive_rate_limits: int = 3,
     sleep: Callable[[float], None] = time.sleep,
     snapshot_sink: Optional[Callable[[list, _dt.date], None]] = None,
     artifact_dir: Optional[str] = None,
@@ -108,16 +115,32 @@ def run_option_scan(
         by_secid = {ref.security_id: ref for ref in catalog if ref.expiry_date >= trade_date}
 
         # 1. Bulk-quote everything for volume/OI/LTP (cheap; NOT the rate-limited chain).
+        #    A run of 429s means Dhan is throttling us — abort fast rather than hammer (and risk
+        #    a block); the next run retries after a cooldown.
         quotes: dict[str, dict] = {}
+        consec_rl = 0
         for batch in batch_option_refs(list(by_secid.values())):
             try:
                 quotes.update(parse_option_quote_response(dhan_client.quote(batch)))
                 summary.quote_batches += 1
+                consec_rl = 0
+                if quote_interval and sleep:
+                    sleep(quote_interval)
             except Exception as err:
                 _note_error(summary, "quote batch", err)
                 _log(f"quote batch failed: {err}")
-            if quote_interval and sleep:
-                sleep(quote_interval)
+                if _is_rate_limited(err):
+                    consec_rl += 1
+                    if consec_rl >= max_consecutive_rate_limits:
+                        raise OptionScanError(
+                            f"Dhan rate-limited /marketfeed/quote ({consec_rl}x in a row) - aborting "
+                            f"to avoid a block; retry after a cooldown")
+                    if sleep:
+                        sleep(rate_limit_cooldown)
+                else:
+                    consec_rl = 0
+                    if quote_interval and sleep:
+                        sleep(quote_interval)
 
         today: dict[int, dict] = {}
         for secid, q in quotes.items():
@@ -153,12 +176,14 @@ def run_option_scan(
             if not scrip:
                 continue
             chain_groups.setdefault((scrip, seg, d["ref"].expiry_date), []).append(cid)
+        consec_rl = 0
         for (scrip, seg, exp), cids in chain_groups.items():
             label = f"{today[cids[0]]['ref'].underlying_symbol} {seg} {exp.isoformat()}"
             try:
                 raw = dhan_client.option_chain(scrip, seg, exp.isoformat())
                 snap = parse_option_chain(raw, exp.isoformat(), underlying_scrip=scrip, underlying_seg=seg)
                 summary.chains_fetched += 1
+                consec_rl = 0
                 by_key = {(round(q.strike, 2), q.option_type): q for q in snap.quotes}
                 for cid in cids:
                     ref = today[cid]["ref"]
@@ -173,6 +198,14 @@ def run_option_scan(
             except Exception as err:  # index id / rate hiccup — tracking still works without Greeks
                 _note_error(summary, label, err)
                 _log(f"chain enrich failed {scrip}/{seg}/{exp}: {err}")
+                if _is_rate_limited(err):
+                    consec_rl += 1
+                    if consec_rl >= max_consecutive_rate_limits:
+                        _log("chain enrichment repeatedly rate-limited; skipping the rest (tracking unaffected)")
+                        break
+                    if sleep:
+                        sleep(rate_limit_cooldown)
+                    continue
             if request_interval and sleep:
                 sleep(request_interval)
 
