@@ -1,10 +1,9 @@
 name: EOD Scan
 
 on:
-  schedule:
-    # 11:30 UTC = 5:00 PM IST, Mon–Fri (NSE closes 3:30 PM; EOD data is settled by 5). The
-    # runner also refuses to scan 'today' before 16:00 IST and skips NSE holidays itself.
-    - cron: "30 11 * * 1-5"
+  # Triggered once a day by Vercel Cron (web/app/api/cron/scan) — the single reliable scheduler.
+  # GitHub's own `schedule:` cron is deliberately NOT used here (it doesn't fire reliably).
+  # The runner refuses to scan 'today' before 16:00 IST and skips NSE holidays itself.
   workflow_dispatch:
     inputs:
       rescan_today:
