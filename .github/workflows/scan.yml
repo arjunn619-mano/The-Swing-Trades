@@ -2,18 +2,15 @@ name: EOD Scan
 
 on:
   schedule:
-    # CONTROLLED TEST (off-peak per GitHub's own advice — NOT the top/bottom of the hour):
-    # 11:37 UTC = 5:07 PM IST, daily. The worker self-skips weekends/holidays, so weekend
-    # firings are harmless no-ops — but they still prove the scheduler actually fired.
-    - cron: "37 11 * * *"
+    # NEAR-TERM TEST SLOT (temporary): 00:42 UTC = 6:12 AM IST, off-peak. Set ~50 min ahead to
+    # watch whether GitHub fires it on its own today. The scheduled run scans the last SETTLED
+    # session, so on a weekend it auto-pulls Friday. >>> MOVE THIS BACK to ~5 PM IST (e.g.
+    # "37 11 * * *") once we've confirmed the scheduler actually fires. <<<
+    - cron: "42 0 * * *"
   workflow_dispatch:
     inputs:
       rescan_today:
         description: "Reset & re-scan today (use if today was scanned pre-close on stale prices)"
-        type: boolean
-        default: false
-      pull_last_session:
-        description: "Scan the last completed session (catch up after a missed run / on a weekend)"
         type: boolean
         default: false
 
@@ -40,15 +37,13 @@ jobs:
         working-directory: worker
         run: python scripts/refresh_universe.py
 
-      - name: Run EOD scan (catchup-aware; or rescan / pull-last-session)
+      - name: Run EOD scan (last settled session; or reset+rescan today)
         working-directory: worker
         run: |
           if [ "${{ inputs.rescan_today }}" = "true" ]; then
             python scripts/rescan_today.py
-          elif [ "${{ inputs.pull_last_session }}" = "true" ]; then
-            python scripts/scan_last_session.py
           else
-            python scripts/run_scan_if_needed.py
+            python scripts/scan_last_session.py
           fi
 
       - name: Upload health artifact
