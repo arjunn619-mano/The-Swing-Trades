@@ -12,6 +12,10 @@ on:
         description: "Reset & re-scan today (use if today was scanned pre-close on stale prices)"
         type: boolean
         default: false
+      pull_last_session:
+        description: "Scan the last completed session (catch up after a missed run / on a weekend)"
+        type: boolean
+        default: false
 
 # Prerequisite (run once via the "Bootstrap" workflow): init DB + refresh universe + backfill.
 jobs:
@@ -36,11 +40,13 @@ jobs:
         working-directory: worker
         run: python scripts/refresh_universe.py
 
-      - name: Run EOD scan (catchup-aware; or reset+rescan today)
+      - name: Run EOD scan (catchup-aware; or rescan / pull-last-session)
         working-directory: worker
         run: |
           if [ "${{ inputs.rescan_today }}" = "true" ]; then
             python scripts/rescan_today.py
+          elif [ "${{ inputs.pull_last_session }}" = "true" ]; then
+            python scripts/scan_last_session.py
           else
             python scripts/run_scan_if_needed.py
           fi

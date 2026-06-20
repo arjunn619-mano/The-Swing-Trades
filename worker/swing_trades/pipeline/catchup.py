@@ -8,7 +8,7 @@ from __future__ import annotations
 import datetime as _dt
 from typing import Optional
 
-from ..utils.timeutils import is_trading_day, trading_days_between
+from ..utils.timeutils import is_trading_day, previous_trading_day, trading_days_between
 
 
 MARKET_SETTLE_IST = _dt.time(16, 0)  # NSE closes 15:30 IST; allow ~30 min for EOD data to settle
@@ -23,6 +23,17 @@ def eod_ready(now: _dt.datetime) -> bool:
 
 def should_run_today(today: _dt.date, already_done_today: bool) -> bool:
     return is_trading_day(today) and not already_done_today
+
+
+def last_settled_session(now: _dt.datetime) -> _dt.date:
+    """The most recent trading day whose EOD data is settled, as of `now` (IST): today if it's
+    a trading day past the 16:00 settle, else the previous trading day. The live quote reflects
+    exactly this session's close, so scanning it is accurate even when run on a weekend/holiday
+    (e.g. run on Sunday -> pulls Friday)."""
+    today = now.date()
+    if is_trading_day(today) and eod_ready(now):
+        return today
+    return previous_trading_day(today)
 
 
 def trading_gap(last_successful: Optional[_dt.date], today: _dt.date) -> int:
