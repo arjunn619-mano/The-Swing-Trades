@@ -1,9 +1,11 @@
 name: EOD Scan
 
 on:
-  # Triggered once a day by Vercel Cron (web/app/api/cron/scan) — the single reliable scheduler.
-  # GitHub's own `schedule:` cron is deliberately NOT used here (it doesn't fire reliably).
-  # The runner refuses to scan 'today' before 16:00 IST and skips NSE holidays itself.
+  schedule:
+    # CONTROLLED TEST (off-peak per GitHub's own advice — NOT the top/bottom of the hour):
+    # 11:37 UTC = 5:07 PM IST, daily. The worker self-skips weekends/holidays, so weekend
+    # firings are harmless no-ops — but they still prove the scheduler actually fired.
+    - cron: "37 11 * * *"
   workflow_dispatch:
     inputs:
       rescan_today:
