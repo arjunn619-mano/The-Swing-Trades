@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, Optional, Sequence
@@ -80,6 +81,8 @@ def run_scan(
     horizon_days: int = 100,
     rsi_period: int = 14,
     volume_lookback: int = 14,
+    quote_interval: float = 1.1,   # Dhan Quote API limit is 1 req/sec — space the batches
+    sleep: Callable[[float], None] = time.sleep,
     artifact_dir: Optional[str] = None,
     alert: Optional[Callable[[str], bool]] = None,
     logger=None,
@@ -102,9 +105,12 @@ def run_scan(
         if not instruments:
             raise ScanError("no active instruments in the universe")
 
-        # 1. Fetch today's OHLCV (bulk quote, batched <=1000/call).
+        # 1. Fetch today's OHLCV (bulk quote, <=1000 ids/call). Dhan's Quote API is capped at
+        #    1 request/second, so space the batches out (firing them back-to-back tripped 429/805).
         quotes = {}
-        for batch in _batches_from_refs(instruments):
+        for i, batch in enumerate(_batches_from_refs(instruments)):
+            if i and quote_interval and sleep:
+                sleep(quote_interval)
             quotes.update(parse_quote_response(dhan_client.quote(batch), trade_date))
 
         # 2. Freshness gate: never write an empty/garbage day.

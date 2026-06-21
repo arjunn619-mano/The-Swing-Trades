@@ -61,10 +61,13 @@ class DhanDataClient:
                 if detail:  # surface the API's error body (e.g. WHY a 400 happened)
                     err = RuntimeError(f"{err} :: {str(detail)[:400]}")
                 last_err = err
-                if status is not None and 400 <= status < 500:
-                    break  # client error — retrying won't fix it
+                rate_limited = status == 429  # Dhan 805 "too many requests"
+                if status is not None and 400 <= status < 500 and not rate_limited:
+                    break  # other client errors won't be fixed by retrying
                 if attempt < self._retries - 1:
-                    self._sleep(self._backoff * (attempt + 1))
+                    # back off; longer on a rate limit so the throttle can clear (2s, 4s, ...)
+                    wait = (2.0 * 2 ** attempt) if rate_limited else self._backoff * (attempt + 1)
+                    self._sleep(wait)
         assert last_err is not None
         raise last_err
 

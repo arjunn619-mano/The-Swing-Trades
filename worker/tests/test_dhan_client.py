@@ -1,3 +1,5 @@
+import pytest
+
 from swing_trades.data_layer.dhan_client import DhanDataClient
 
 
@@ -58,3 +60,29 @@ def test_post_retries_then_succeeds():
     bars = client.historical_daily("1", "NSE_EQ", "2024-01-01", "2024-01-02")
     assert len(bars) == 1
     assert len(sess.calls) == 2  # retried once after the transient failure
+
+
+class FakeHTTPError(Exception):
+    """Mimics requests.HTTPError: carries a .response with .status_code/.text."""
+
+    def __init__(self, status, text=""):
+        super().__init__(f"{status} Client Error")
+        self.response = type("R", (), {"status_code": status, "text": text})()
+
+
+def test_post_backs_off_and_retries_on_429():
+    payload = {"open": [1], "high": [1], "low": [1], "close": [1],
+               "volume": [1], "timestamp": [1704067200]}
+    sess = FakeSession([FakeHTTPError(429, '{"805":"Too many requests"}'), FakeResp(payload)])
+    client = DhanDataClient("JWT", "C1", session=sess, sleep=lambda _s: None)
+    bars = client.historical_daily("1", "NSE_EQ", "2024-01-01", "2024-01-02")
+    assert len(bars) == 1
+    assert len(sess.calls) == 2  # 429 (Dhan 805) backed off and retried
+
+
+def test_post_does_not_retry_other_4xx():
+    sess = FakeSession([FakeHTTPError(400, "bad request"), FakeHTTPError(400, "bad request")])
+    client = DhanDataClient("JWT", "C1", session=sess, sleep=lambda _s: None)
+    with pytest.raises(Exception):
+        client.historical_daily("1", "NSE_EQ", "2024-01-01", "2024-01-02")
+    assert len(sess.calls) == 1  # a 400 is not retried
