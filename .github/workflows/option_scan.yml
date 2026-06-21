@@ -39,11 +39,4 @@ jobs:
       - name: Run EOD option scan (enroll vol>1L, observe, expire, archive)
         working-directory: worker
         run: python scripts/run_option_scan.py
-
-      - name: Upload health artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: option-scan-${{ github.run_id }}
-          path: worker/artifacts/
-          if-no-files-found: warn
+      # No artifact upload (redundant with the run log + Neon; it tripped the storage quota).
