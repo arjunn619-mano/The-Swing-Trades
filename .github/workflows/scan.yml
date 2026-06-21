@@ -46,8 +46,10 @@ jobs:
 
       - name: Upload health artifact
         if: always()
+        continue-on-error: true   # a full artifact quota must NOT fail the scan (data is in Neon)
         uses: actions/upload-artifact@v4
         with:
           name: scan-${{ github.run_id }}
           path: worker/artifacts/
           if-no-files-found: warn
+          retention-days: 14       # auto-expire (default 90) so artifacts don't pile up to the quota
