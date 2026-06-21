@@ -1,12 +1,10 @@
 name: EOD Scan
 
 on:
-  schedule:
-    # NEAR-TERM TEST SLOT (temporary): 00:42 UTC = 6:12 AM IST, off-peak. Set ~50 min ahead to
-    # watch whether GitHub fires it on its own today. The scheduled run scans the last SETTLED
-    # session, so on a weekend it auto-pulls Friday. >>> MOVE THIS BACK to ~5 PM IST (e.g.
-    # "37 11 * * *") once we've confirmed the scheduler actually fires. <<<
-    - cron: "42 0 * * *"
+  # Triggered daily by Vercel Cron (web/vercel.json -> web/app/api/cron/scan) via workflow_dispatch.
+  # GitHub's own `schedule:` cron is intentionally NOT used — it does not fire reliably for this
+  # repo (a documented, widespread GitHub issue: scheduled runs are delayed/dropped). The default
+  # run scans the last settled session; the worker self-skips weekends/holidays.
   workflow_dispatch:
     inputs:
       rescan_today:
