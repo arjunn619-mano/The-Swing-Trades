@@ -25,14 +25,15 @@ export function Card({ children, className = "" }: { children: React.ReactNode; 
   );
 }
 
-export function StatCard({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
-  return (
-    <Card>
+export function StatCard({ label, value, hint, href }: { label: string; value: React.ReactNode; hint?: string; href?: string }) {
+  const inner = (
+    <Card className={href ? "h-full transition-colors hover:border-navy-700 hover:bg-navy-900" : ""}>
       <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
       <div className="mt-1 text-2xl font-semibold text-slate-100">{value}</div>
       {hint ? <div className="mt-0.5 text-xs text-slate-500">{hint}</div> : null}
     </Card>
   );
+  return href ? <Link href={href} className="block">{inner}</Link> : inner;
 }
 
 export function SectionHeading({ title, subtitle }: { title: string; subtitle?: string }) {
@@ -105,40 +106,9 @@ export function DataTable<T>({ columns, rows, empty }: { columns: Column<T>[]; r
   );
 }
 
-export function Nav() {
-  const links = [
-    { href: "/", label: "Overview" },
-    { href: "/tracker", label: "Tracker" },
-    { href: "/options", label: "Options" },
-    { href: "/new-listings", label: "New Listings" },
-    { href: "/strategies", label: "Strategies" },
-    { href: "/starred", label: "Starred" },
-  ];
-  return (
-    <header className="sticky top-0 z-10 border-b border-navy-700/60 bg-navy-950/80 backdrop-blur">
-      <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/" className="shrink-0">
-          <span className="text-base font-semibold text-slate-100">The Swing Trades</span>
-        </Link>
-        <nav className="flex min-w-0 gap-1 overflow-x-auto text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="whitespace-nowrap rounded-md px-2.5 py-1 text-slate-300 hover:bg-navy-800 hover:text-white"
-            >
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
-    </header>
-  );
-}
-
 export function Disclaimer() {
   return (
-    <footer className="mx-auto mt-10 max-w-[1800px] px-4 pb-10 text-xs text-slate-500 sm:px-6">
+    <footer className="mx-auto mt-10 max-w-[1800px] px-4 pb-24 text-xs text-slate-500 sm:px-6 md:pb-10">
       <Card className="bg-navy-900/40">
         <p className="font-medium text-slate-400">What is this?</p>
         <p className="mt-1">

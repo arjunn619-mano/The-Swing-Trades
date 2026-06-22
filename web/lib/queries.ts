@@ -25,6 +25,7 @@ export type Metric = {
 export type Signal = {
   symbol: string;
   name: string;
+  exchange: string | null;
   strategy: string;
   close: number | null;
   rsi: number | null;
@@ -151,7 +152,7 @@ export async function getLatestSignals(): Promise<Signal[]> {
   if (!sql) return [];
   try {
     const rows = await sql`
-      SELECT i.nse_symbol, i.symbol_name, st.display_name AS strategy,
+      SELECT i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
              sg.close, sg.rsi, sg.volume_ratio, sg.candle_type, sg.trade_date
       FROM scan_signals sg
       JOIN instruments i ON i.id = sg.instrument_id
@@ -162,6 +163,7 @@ export async function getLatestSignals(): Promise<Signal[]> {
     return rows.map((r) => ({
       symbol: r.nse_symbol ?? r.symbol_name,
       name: r.symbol_name,
+      exchange: r.exchange_pref,
       strategy: r.strategy,
       close: num(r.close),
       rsi: num(r.rsi),

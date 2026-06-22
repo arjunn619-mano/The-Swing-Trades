@@ -52,9 +52,30 @@ function ReturnCell({ value: v }: { value: number | null }) {
   return <span className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${tone}`}>{v > 0 ? "+" : ""}{pct(v)}</span>;
 }
 
+// Day N of the 100-trading-day window as a scannable bar: slate while running,
+// amber in the final stretch, sky once the window is complete.
+function DayProgress({ dayN }: { dayN: number | null }) {
+  if (dayN === null) return <span className="text-slate-500">—</span>;
+  const n = Math.max(0, dayN);
+  const frac = Math.min(1, n / 100);
+  const done = n >= 100;
+  const nearEnd = n >= 85 && !done;
+  const bar = done ? "bg-sky-400" : nearEnd ? "bg-amber-400" : "bg-slate-500";
+  const text = done ? "text-sky-300" : nearEnd ? "text-amber-300" : "text-slate-400";
+  return (
+    <span className="inline-flex items-center gap-2" title={`Trading day ${n} of 100`}>
+      <span className="h-1.5 w-14 overflow-hidden rounded-full bg-navy-700">
+        <span className={`block h-full rounded-full ${bar}`} style={{ width: `${frac * 100}%` }} />
+      </span>
+      <span className={`tabular-nums text-xs ${text}`}>{n}/100</span>
+    </span>
+  );
+}
+
 export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredIds: number[] }) {
   const [strategy, setStrategy] = useState<string>("all");
   const [returnFilter, setReturnFilter] = useState<ReturnFilter>("all");
+  const [query, setQuery] = useState<string>("");
   const [sortKey, setSortKey] = useState<SortKey>("firstSeenDate");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -79,13 +100,15 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
     let out = strategyFiltered;
     if (returnFilter === "positive") out = out.filter((r) => (r.latestReturn ?? 0) > 0);
     else if (returnFilter === "negative") out = out.filter((r) => (r.latestReturn ?? 0) < 0);
+    const q = query.trim().toLowerCase();
+    if (q) out = out.filter((r) => (r.symbol ?? "").toLowerCase().includes(q) || (r.name ?? "").toLowerCase().includes(q));
     return [...out].sort((a, b) => {
       const va = value(a, sortKey);
       const vb = value(b, sortKey);
       const c = typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : (va as number) - (vb as number);
       return sortDir === "asc" ? c : -c;
     });
-  }, [strategyFiltered, returnFilter, sortKey, sortDir]);
+  }, [strategyFiltered, returnFilter, query, sortKey, sortDir]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -135,6 +158,14 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
       </aside>
 
       <div className="min-w-0 flex-1 space-y-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search symbol or name…"
+          aria-label="Search symbol or name"
+          className="w-full rounded-md border border-navy-700/60 bg-navy-900 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-navy-600 focus:outline-none sm:max-w-xs"
+        />
         {/* Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm">
@@ -217,7 +248,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
                   <td className="whitespace-nowrap px-3 py-2 text-slate-300">{dateStr(r.firstSeenDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.entryClose)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.currentClose)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-300">{r.dayN ?? "—"}/100</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right"><DayProgress dayN={r.dayN} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-right"><ReturnCell value={r.latestReturn} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-300">{r.appearanceCount}×</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right"><ChartLink exchange={r.exchange} ticker={r.symbol} /></td>
@@ -242,9 +273,11 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
               <div className="mt-1 truncate text-xs text-slate-500">{r.name}</div>
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                 <span className="text-slate-500">Strategy <span className="text-slate-300">{r.strategy}</span></span>
-                <span className="text-slate-500">Day <span className="text-slate-300">{r.dayN ?? "—"}/100</span></span>
+                <span className="text-slate-500">First seen <span className="text-slate-300">{dateStr(r.firstSeenDate)}</span></span>
                 <span className="text-slate-500">Entry <span className="text-slate-300">{money(r.entryClose)}</span></span>
                 <span className="text-slate-500">Now <span className="text-slate-300">{money(r.currentClose)}</span></span>
+                <span className="inline-flex items-center gap-1 text-slate-500">Day <DayProgress dayN={r.dayN} /></span>
+                <span className="text-slate-500">Appears <span className="text-slate-300">{r.appearanceCount}×</span></span>
               </div>
             </div>
           ))}

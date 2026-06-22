@@ -52,6 +52,7 @@ function ReturnCell({ value: v }: { value: number | null }) {
 export function NewListingsView({ rows, starredIds }: { rows: NewListing[]; starredIds: number[] }) {
   const [exchange, setExchange] = useState<string>("all");
   const [returnFilter, setReturnFilter] = useState<ReturnFilter>("all");
+  const [query, setQuery] = useState<string>("");
   const [sortKey, setSortKey] = useState<SortKey>("firstSeen");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -76,13 +77,15 @@ export function NewListingsView({ rows, starredIds }: { rows: NewListing[]; star
     let out = exchangeFiltered;
     if (returnFilter === "positive") out = out.filter((r) => (r.returnPct ?? 0) > 0);
     else if (returnFilter === "negative") out = out.filter((r) => (r.returnPct ?? 0) < 0);
+    const q = query.trim().toLowerCase();
+    if (q) out = out.filter((r) => (r.symbol ?? "").toLowerCase().includes(q) || (r.name ?? "").toLowerCase().includes(q));
     return [...out].sort((a, b) => {
       const va = value(a, sortKey);
       const vb = value(b, sortKey);
       const c = typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : (va as number) - (vb as number);
       return sortDir === "asc" ? c : -c;
     });
-  }, [exchangeFiltered, returnFilter, sortKey, sortDir]);
+  }, [exchangeFiltered, returnFilter, query, sortKey, sortDir]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -131,6 +134,14 @@ export function NewListingsView({ rows, starredIds }: { rows: NewListing[]; star
       </aside>
 
       <div className="min-w-0 flex-1 space-y-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search symbol or name…"
+          aria-label="Search symbol or name"
+          className="w-full rounded-md border border-navy-700/60 bg-navy-900 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-navy-600 focus:outline-none sm:max-w-xs"
+        />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm">
             <span className="text-slate-400">

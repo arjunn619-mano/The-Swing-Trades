@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Disclaimer, Nav } from "@/components/ui";
+import { Disclaimer } from "@/components/ui";
+import { Nav } from "@/components/Nav";
+import { getOverview } from "@/lib/queries";
+
+// Keep the nav freshness chip on the same ISR cadence as the pages.
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "The Swing Trades",
@@ -17,12 +22,13 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const overview = await getOverview();
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <Nav />
-        <main className="mx-auto max-w-[1800px] px-4 py-6 sm:px-6">{children}</main>
+        <Nav lastScanDate={overview.lastScanDate} lastScanStatus={overview.lastScanStatus} />
+        <main className="mx-auto max-w-[1800px] px-4 pb-24 pt-6 sm:px-6 md:pb-6">{children}</main>
         <Disclaimer />
       </body>
     </html>

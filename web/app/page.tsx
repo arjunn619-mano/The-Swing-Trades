@@ -1,4 +1,4 @@
-import { Badge, DataTable, ReturnBadge, SectionHeading, StatCard } from "@/components/ui";
+import { Badge, ChartLink, DataTable, ReturnBadge, SectionHeading, StatCard } from "@/components/ui";
 import { dateStr, fixed, money, pct } from "@/lib/format";
 import { getLatestSignals, getOverview, getStrategyMetrics, type Metric, type Signal } from "@/lib/queries";
 
@@ -25,9 +25,9 @@ export default async function Home() {
         </p>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="Universe" value={overview.activeCount.toLocaleString("en-IN")} hint="active equities" />
-          <StatCard label="Tracked" value={overview.trackedCount.toLocaleString("en-IN")} hint="active entries" />
-          <StatCard label="New listings" value={overview.newListingCount.toLocaleString("en-IN")} hint="< 45 days history" />
-          <StatCard label="Strategies" value={metrics.length} hint="screening logics" />
+          <StatCard label="Tracked" value={overview.trackedCount.toLocaleString("en-IN")} hint="active entries" href="/tracker" />
+          <StatCard label="New listings" value={overview.newListingCount.toLocaleString("en-IN")} hint="< 45 days history" href="/new-listings" />
+          <StatCard label="Strategies" value={metrics.length} hint="screening logics" href="/strategies" />
         </div>
       </section>
 
@@ -67,6 +67,7 @@ export default async function Home() {
             { key: "rsi", label: "RSI", align: "right", render: (s) => fixed(s.rsi, 1) },
             { key: "vol", label: "Vol×", align: "right", render: (s) => `${fixed(s.volumeRatio, 2)}×` },
             { key: "candle", label: "Candle", render: (s) => (s.candleType ? <Badge tone="green">{s.candleType.replace(/_/g, " ")}</Badge> : "—") },
+            { key: "chart", label: "Chart", align: "right", render: (s) => <ChartLink exchange={s.exchange} ticker={s.symbol} /> },
           ]}
         />
       </section>
