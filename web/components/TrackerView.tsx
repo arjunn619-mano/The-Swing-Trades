@@ -7,6 +7,8 @@ import { dateStr, money, pct } from "@/lib/format";
 import type { TrackerRow } from "@/lib/queries";
 
 type SortKey = "symbol" | "firstSeenDate" | "entryClose" | "currentClose" | "dayN" | "latestReturn" | "appearanceCount";
+type SortDir = "asc" | "desc";
+type Sort = { key: SortKey; dir: SortDir };
 type ReturnFilter = "all" | "positive" | "negative";
 
 const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "chart"; label: string; align?: "right"; sortable?: boolean }[] = [
@@ -24,6 +26,30 @@ const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "chart"; label: s
 ];
 
 const SORT_OPTIONS = COLUMNS.filter((c) => c.sortable).map((c) => ({ key: c.key as SortKey, label: c.label }));
+const labelOf = (k: SortKey) => SORT_OPTIONS.find((o) => o.key === k)?.label ?? k;
+
+// Numeric columns that get a min/max range filter in the left panel.
+// `pct` fields are stored as fractions (0.05 = 5%) but typed/compared in percent.
+const RANGE_FIELDS: { key: string; label: string; get: (r: TrackerRow) => number | null; pct?: boolean }[] = [
+  { key: "entryClose", label: "Entry close (₹)", get: (r) => r.entryClose },
+  { key: "currentClose", label: "Current close (₹)", get: (r) => r.currentClose },
+  { key: "dayN", label: "Day (0–100)", get: (r) => r.dayN },
+  { key: "latestReturn", label: "Return (%)", get: (r) => r.latestReturn, pct: true },
+  { key: "appearanceCount", label: "Appears", get: (r) => r.appearanceCount },
+];
+
+// first_seen_date may arrive as a string ("2026-06-22") or a Date (driver-dependent);
+// normalise to a local YYYY-MM-DD so the date-range filter compares correctly either way.
+function isoDate(x: unknown): string {
+  if (!x) return "";
+  if (x instanceof Date) {
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, "0");
+    const d = String(x.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return String(x).slice(0, 10);
+}
 
 function value(r: TrackerRow, key: SortKey): number | string {
   switch (key) {
@@ -76,17 +102,45 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
   const [strategy, setStrategy] = useState<string>("all");
   const [returnFilter, setReturnFilter] = useState<ReturnFilter>("all");
   const [query, setQuery] = useState<string>("");
-  const [sortKey, setSortKey] = useState<SortKey>("firstSeenDate");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sorts, setSorts] = useState<Sort[]>([]);
+  const [ranges, setRanges] = useState<Record<string, { min: string; max: string }>>({});
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   const starred = useMemo(() => new Set(starredIds), [starredIds]);
 
-  const strategyCounts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const r of rows) m.set(r.strategy, (m.get(r.strategy) ?? 0) + 1);
+  // Per-strategy count + how many are currently positive (drives the sidebar %).
+  const strategyStats = useMemo(() => {
+    const m = new Map<string, { count: number; pos: number }>();
+    for (const r of rows) {
+      const s = m.get(r.strategy) ?? { count: 0, pos: 0 };
+      s.count += 1;
+      if ((r.latestReturn ?? 0) > 0) s.pos += 1;
+      m.set(r.strategy, s);
+    }
     return m;
   }, [rows]);
-  const strategies = useMemo(() => Array.from(strategyCounts.keys()).sort(), [strategyCounts]);
+  const strategies = useMemo(() => Array.from(strategyStats.keys()).sort(), [strategyStats]);
+  const overallPos = useMemo(() => rows.filter((r) => (r.latestReturn ?? 0) > 0).length, [rows]);
+
+  // Actual data min/max per numeric column — shown as placeholder hints in the filters.
+  const bounds = useMemo(() => {
+    const b: Record<string, { min: number; max: number }> = {};
+    for (const f of RANGE_FIELDS) {
+      let mn = Infinity;
+      let mx = -Infinity;
+      for (const r of rows) {
+        const raw = f.get(r);
+        if (raw === null || Number.isNaN(raw)) continue;
+        const x = f.pct ? raw * 100 : raw;
+        if (x < mn) mn = x;
+        if (x > mx) mx = x;
+      }
+      b[f.key] = { min: mn === Infinity ? 0 : mn, max: mx === -Infinity ? 0 : mx };
+    }
+    return b;
+  }, [rows]);
 
   const strategyFiltered = useMemo(
     () => (strategy === "all" ? rows : rows.filter((r) => r.strategy === strategy)),
@@ -100,23 +154,83 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
     let out = strategyFiltered;
     if (returnFilter === "positive") out = out.filter((r) => (r.latestReturn ?? 0) > 0);
     else if (returnFilter === "negative") out = out.filter((r) => (r.latestReturn ?? 0) < 0);
+
     const q = query.trim().toLowerCase();
     if (q) out = out.filter((r) => (r.symbol ?? "").toLowerCase().includes(q) || (r.name ?? "").toLowerCase().includes(q));
-    return [...out].sort((a, b) => {
-      const va = value(a, sortKey);
-      const vb = value(b, sortKey);
-      const c = typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : (va as number) - (vb as number);
-      return sortDir === "asc" ? c : -c;
-    });
-  }, [strategyFiltered, returnFilter, query, sortKey, sortDir]);
 
-  function toggleSort(key: SortKey) {
-    if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSortKey(key);
-      setSortDir("desc");
+    // Per-column numeric range filters.
+    for (const f of RANGE_FIELDS) {
+      const rg = ranges[f.key];
+      if (!rg) continue;
+      const min = rg.min === "" ? null : Number(rg.min);
+      const max = rg.max === "" ? null : Number(rg.max);
+      if (min === null && max === null) continue;
+      out = out.filter((r) => {
+        const raw = f.get(r);
+        if (raw === null || Number.isNaN(raw)) return false;
+        const v = f.pct ? raw * 100 : raw;
+        if (min !== null && v < min) return false;
+        if (max !== null && v > max) return false;
+        return true;
+      });
     }
+
+    // First-seen date range (ISO YYYY-MM-DD compares lexicographically).
+    if (dateFrom || dateTo) {
+      out = out.filter((r) => {
+        const d = isoDate(r.firstSeenDate);
+        if (!d) return false;
+        if (dateFrom && d < dateFrom) return false;
+        if (dateTo && d > dateTo) return false;
+        return true;
+      });
+    }
+
+    // Multi-column sort: walk the stack in click-order; first non-tie wins.
+    const arr = [...out];
+    if (sorts.length) {
+      arr.sort((a, b) => {
+        for (const s of sorts) {
+          const va = value(a, s.key);
+          const vb = value(b, s.key);
+          const c = typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : (va as number) - (vb as number);
+          if (c !== 0) return s.dir === "asc" ? c : -c;
+        }
+        return 0;
+      });
+    }
+    return arr;
+  }, [strategyFiltered, returnFilter, query, ranges, dateFrom, dateTo, sorts]);
+
+  // Click a column: add as next sort level (desc) → flip to asc → remove.
+  function cycleSort(key: SortKey) {
+    setSorts((prev) => {
+      const i = prev.findIndex((s) => s.key === key);
+      if (i === -1) return [...prev, { key, dir: "desc" }];
+      if (prev[i].dir === "desc") {
+        const next = [...prev];
+        next[i] = { key, dir: "asc" };
+        return next;
+      }
+      return prev.filter((s) => s.key !== key);
+    });
   }
+
+  function setRange(key: string, side: "min" | "max", val: string) {
+    setRanges((prev) => ({
+      ...prev,
+      [key]: { min: side === "min" ? val : prev[key]?.min ?? "", max: side === "max" ? val : prev[key]?.max ?? "" },
+    }));
+  }
+  function clearFilters() {
+    setRanges({});
+    setDateFrom("");
+    setDateTo("");
+  }
+
+  const activeFilterCount =
+    RANGE_FIELDS.filter((f) => ranges[f.key] && (ranges[f.key].min !== "" || ranges[f.key].max !== "")).length +
+    (dateFrom || dateTo ? 1 : 0);
 
   if (rows.length === 0) {
     return (
@@ -127,8 +241,11 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
   }
 
   const sidebarItems = [
-    { key: "all", label: "All strategies", count: rows.length },
-    ...strategies.map((s) => ({ key: s, label: s, count: strategyCounts.get(s) ?? 0 })),
+    { key: "all", label: "All strategies", count: rows.length, posPct: rows.length ? Math.round((overallPos / rows.length) * 100) : null },
+    ...strategies.map((s) => {
+      const st = strategyStats.get(s) ?? { count: 0, pos: 0 };
+      return { key: s, label: s, count: st.count, posPct: st.count ? Math.round((st.pos / st.count) * 100) : null };
+    }),
   ];
   const returnTabs: { key: ReturnFilter; label: string }[] = [
     { key: "all", label: "All" },
@@ -136,24 +253,91 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
     { key: "negative", label: "Negative" },
   ];
 
+  const inputCls =
+    "w-full min-w-0 rounded-md border border-navy-700/60 bg-navy-900 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600 focus:border-navy-600 focus:outline-none";
+
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
-      {/* Strategy filter — horizontal chips on mobile, vertical sidebar on desktop */}
-      <aside className="lg:w-56 lg:shrink-0">
+      {/* Strategy filter + range filters — horizontal on mobile, sidebar on desktop */}
+      <aside className="lg:w-60 lg:shrink-0">
         <div className="mb-2 hidden text-xs uppercase tracking-wide text-slate-400 lg:block">Strategy</div>
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0 lg:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {sidebarItems.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setStrategy(item.key)}
-              className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm transition-colors lg:w-full lg:justify-between lg:shrink ${
-                strategy === item.key ? "bg-navy-700 text-white" : "bg-navy-900/60 text-slate-300 hover:bg-navy-800 lg:bg-transparent"
-              }`}
-            >
-              <span>{item.label}</span>
-              <span className={`text-xs ${strategy === item.key ? "text-slate-300" : "text-slate-500"}`}>{item.count}</span>
-            </button>
-          ))}
+          {sidebarItems.map((item) => {
+            const active = strategy === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => setStrategy(item.key)}
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm transition-colors lg:w-full lg:justify-between lg:shrink ${
+                  active ? "bg-navy-700 text-white" : "bg-navy-900/60 text-slate-300 hover:bg-navy-800 lg:bg-transparent"
+                }`}
+              >
+                <span className="truncate">{item.label}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {item.posPct !== null ? (
+                    <span className={`text-xs ${active ? "text-emerald-200" : "text-emerald-400/70"}`} title="% of entries currently positive">
+                      {item.posPct}%
+                    </span>
+                  ) : null}
+                  <span className={`text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>{item.count}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Range filters */}
+        <div className="mt-4">
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className="flex w-full items-center justify-between text-xs font-medium uppercase tracking-wide text-slate-400 hover:text-slate-200"
+          >
+            <span>Filters{activeFilterCount ? <span className="ml-1 text-sky-300">· {activeFilterCount}</span> : null}</span>
+            <span className="text-slate-500">{showFilters ? "▲" : "▼"}</span>
+          </button>
+          {showFilters ? (
+            <div className="mt-2 space-y-3">
+              {RANGE_FIELDS.map((f) => (
+                <div key={f.key}>
+                  <div className="text-xs text-slate-400">{f.label}</div>
+                  <div className="mt-1 flex items-center gap-1">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={ranges[f.key]?.min ?? ""}
+                      onChange={(e) => setRange(f.key, "min", e.target.value)}
+                      placeholder={`${Math.floor(bounds[f.key].min)}`}
+                      aria-label={`${f.label} minimum`}
+                      className={inputCls}
+                    />
+                    <span className="text-slate-600">–</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={ranges[f.key]?.max ?? ""}
+                      onChange={(e) => setRange(f.key, "max", e.target.value)}
+                      placeholder={`${Math.ceil(bounds[f.key].max)}`}
+                      aria-label={`${f.label} maximum`}
+                      className={inputCls}
+                    />
+                  </div>
+                </div>
+              ))}
+              <div>
+                <div className="text-xs text-slate-400">First seen</div>
+                <div className="mt-1 flex items-center gap-1">
+                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} aria-label="First seen from" className={inputCls} />
+                  <span className="text-slate-600">–</span>
+                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} aria-label="First seen to" className={inputCls} />
+                </div>
+              </div>
+              {activeFilterCount > 0 ? (
+                <button onClick={clearFilters} className="text-xs text-sky-400 hover:text-sky-300">
+                  Clear filters
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </aside>
 
@@ -168,34 +352,51 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
         />
         {/* Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-slate-400">
               {filtered.length.toLocaleString("en-IN")} of {strategyFiltered.length.toLocaleString("en-IN")}
             </span>
             <span className="rounded-md bg-navy-800 px-2 py-1 text-xs text-slate-300">
               <span className="font-semibold text-emerald-300">{(positivePct * 100).toFixed(1)}%</span> positive
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Mobile sort control */}
-            <div className="flex items-center gap-1 md:hidden">
-              <select
-                value={sortKey}
-                onChange={(e) => setSortKey(e.target.value as SortKey)}
-                className="rounded-md border border-navy-700/60 bg-navy-900 px-2 py-1 text-xs text-slate-200"
-                aria-label="Sort by"
+            {sorts.length > 0 ? (
+              <button
+                onClick={() => setSorts([])}
+                className="rounded-md border border-navy-700/60 bg-navy-900 px-2 py-1 text-xs text-slate-300 hover:text-white"
               >
-                {SORT_OPTIONS.map((o) => (
-                  <option key={o.key} value={o.key}>{o.label}</option>
+                Clear sort{sorts.length > 1 ? ` (${sorts.length})` : ""}
+              </button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Mobile multi-sort: active levels as chips (tap to cycle/remove) + add */}
+            <div className="flex flex-wrap items-center gap-1 md:hidden">
+              {sorts.map((s, i) => (
+                <button
+                  key={s.key}
+                  onClick={() => cycleSort(s.key)}
+                  className="inline-flex items-center gap-1 rounded-md border border-navy-700/60 bg-navy-800 px-2 py-1 text-xs text-slate-200"
+                  title="Tap to flip direction, again to remove"
+                >
+                  <span className="text-slate-500">{i + 1}</span>
+                  {labelOf(s.key)} {s.dir === "asc" ? "▲" : "▼"}
+                </button>
+              ))}
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) cycleSort(e.target.value as SortKey);
+                }}
+                className="rounded-md border border-navy-700/60 bg-navy-900 px-2 py-1 text-xs text-slate-300"
+                aria-label="Add sort column"
+              >
+                <option value="">+ Sort…</option>
+                {SORT_OPTIONS.filter((o) => !sorts.some((s) => s.key === o.key)).map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
                 ))}
               </select>
-              <button
-                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-                className="rounded-md border border-navy-700/60 bg-navy-900 px-2 py-1 text-xs text-slate-300"
-                aria-label="Toggle sort direction"
-              >
-                {sortDir === "asc" ? "▲" : "▼"}
-              </button>
             </div>
             {/* Return filter */}
             <div className="flex gap-0.5 rounded-lg border border-navy-700/60 bg-navy-900/60 p-0.5">
@@ -220,18 +421,25 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
             <thead>
               <tr className="bg-navy-900/70 text-left text-xs uppercase tracking-wide text-slate-400">
                 {COLUMNS.map((c) => {
-                  const active = Boolean(c.sortable) && c.key === sortKey;
+                  const sortIndex = c.sortable ? sorts.findIndex((s) => s.key === c.key) : -1;
+                  const sort = sortIndex >= 0 ? sorts[sortIndex] : null;
                   return (
                     <th
                       key={c.key}
-                      onClick={c.sortable ? () => toggleSort(c.key as SortKey) : undefined}
+                      onClick={c.sortable ? () => cycleSort(c.key as SortKey) : undefined}
+                      title={c.sortable ? "Click to sort (click more columns to add tie-breakers)" : undefined}
                       className={`whitespace-nowrap px-3 py-2 font-medium ${c.align === "right" ? "text-right" : ""} ${
                         c.sortable ? "cursor-pointer select-none hover:text-slate-200" : ""
                       }`}
                     >
                       <span className={`inline-flex items-center gap-1 ${c.align === "right" ? "flex-row-reverse" : ""}`}>
                         {c.label}
-                        {active ? <span className="text-slate-500">{sortDir === "asc" ? "▲" : "▼"}</span> : null}
+                        {sort ? (
+                          <span className="inline-flex items-center gap-0.5 text-sky-300">
+                            {sorts.length > 1 ? <span className="text-[10px] font-semibold">{sortIndex + 1}</span> : null}
+                            <span>{sort.dir === "asc" ? "▲" : "▼"}</span>
+                          </span>
+                        ) : null}
                       </span>
                     </th>
                   );
