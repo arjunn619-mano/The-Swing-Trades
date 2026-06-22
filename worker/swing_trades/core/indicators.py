@@ -146,3 +146,20 @@ def volume_ratio(volume: pd.Series, period: int = 14) -> pd.Series:
     """today_volume / average(prior `period` days). > 1 means above-average volume."""
     av = avg_volume(volume, period)
     return volume.astype("float64") / av
+
+
+def ema(series: pd.Series, period: int) -> pd.Series:
+    """Standard charting EMA. Seeded at index `period-1` with the SMA of the first
+    `period` values (TradingView/most-platform convention), then recursed with
+    alpha = 2/(period+1). NaN until `period` bars exist — so a strategy reading the
+    last value naturally gets None for stocks without enough history (e.g. EMA200)."""
+    arr = series.astype("float64").to_numpy()
+    n = len(arr)
+    out = np.full(n, np.nan)
+    if n < period or period < 1:
+        return pd.Series(out, index=series.index)
+    alpha = 2.0 / (period + 1.0)
+    out[period - 1] = np.nanmean(arr[:period])  # SMA seed
+    for i in range(period, n):
+        out[i] = alpha * arr[i] + (1.0 - alpha) * out[i - 1]
+    return pd.Series(out, index=series.index)

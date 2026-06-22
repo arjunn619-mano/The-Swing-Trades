@@ -43,5 +43,17 @@ strategies:
       volume_min_absolute: 50000
       prefer_exchange: "NSE"
 
+  ema_base_breakout:
+    display_name: "EMA Base Breakout"
+    description: "Green candle back above EMA9/EMA15, price hugging the long EMA (+/-2.5%), still below Supertrend (red zone)."
+    active: true
+    params:
+      fast_ema_period: 9
+      mid_ema_period: 15
+      long_ema_period: 200          # the "base" EMA; set to 250 to use the 250 EMA instead
+      long_ema_vicinity_pct: 0.025  # |close - longEMA| / longEMA <= 2.5%
+      volume_min_absolute: 50000    # liquidity floor (shares); Supertrend reuses ATR 10 / mult 3.0
+      prefer_exchange: "NSE"
+
 # Default observation window for every tracker entry (trading days). Configurable per Rule 8 / M5.
 tracking_horizon_days: 100

@@ -25,6 +25,10 @@ class InstrumentFeatures:
     candle: CandleResult
     supertrend_direction: Optional[int] = None
     supertrend_flipped_long: bool = False
+    open: Optional[float] = None
+    ema_fast: Optional[float] = None   # short EMA (default 9)
+    ema_mid: Optional[float] = None    # mid EMA (default 15)
+    ema_long: Optional[float] = None   # long EMA (default 200); None until enough history
 
 
 def compute_features(
@@ -35,6 +39,9 @@ def compute_features(
     volume_lookback: int = 14,
     atr_period: int = 10,
     atr_multiplier: float = 3.0,
+    ema_fast: int = 9,
+    ema_mid: int = 15,
+    ema_long: int = 200,
 ) -> Optional[InstrumentFeatures]:
     """Build features for the most recent bar. Returns None if there isn't enough history
     to form even a candle (needs >= 2 bars). RSI/volume_ratio are None until their windows fill."""
@@ -54,6 +61,9 @@ def compute_features(
     rsi_series = ind.rsi(df["close"], rsi_period)
     vr_series = ind.volume_ratio(df["volume"], volume_lookback)
     st = ind.supertrend(df["high"], df["low"], df["close"], atr_period, atr_multiplier)
+    ema_fast_v = ind.ema(df["close"], ema_fast).iloc[-1]
+    ema_mid_v = ind.ema(df["close"], ema_mid).iloc[-1]
+    ema_long_v = ind.ema(df["close"], ema_long).iloc[-1]
 
     last, prev = bars[-1], bars[-2]
     candle = evaluate_candle(
@@ -77,4 +87,8 @@ def compute_features(
         candle=candle,
         supertrend_direction=(None if pd.isna(dir_now) else int(dir_now)),
         supertrend_flipped_long=bool(flipped_long),
+        open=float(last.open),
+        ema_fast=(None if pd.isna(ema_fast_v) else float(ema_fast_v)),
+        ema_mid=(None if pd.isna(ema_mid_v) else float(ema_mid_v)),
+        ema_long=(None if pd.isna(ema_long_v) else float(ema_long_v)),
     )

@@ -81,6 +81,9 @@ def run_scan(
     horizon_days: int = 100,
     rsi_period: int = 14,
     volume_lookback: int = 14,
+    ema_fast: int = 9,
+    ema_mid: int = 15,
+    ema_long: int = 200,
     quote_interval: float = 1.1,   # Dhan Quote API limit is 1 req/sec — space the batches
     sleep: Callable[[float], None] = time.sleep,
     artifact_dir: Optional[str] = None,
@@ -133,11 +136,20 @@ def run_scan(
         prev = timeutils.previous_trading_day(trade_date)
         store.fill_pending_next_open(trade_date, prev, opens_by_instrument)
 
-        # 5. Compute features for the latest bar.
+        # 5. Compute features for the latest bar. EMA periods feed the shared feature set;
+        #    let the EMA Base Breakout strategy's YAML override them (e.g. long 200 -> 250).
+        ema_cfg = next((c for c in strategy_configs if c.key == "ema_base_breakout"), None)
+        if ema_cfg:
+            ema_fast = int(ema_cfg.params.get("fast_ema_period", ema_fast))
+            ema_mid = int(ema_cfg.params.get("mid_ema_period", ema_mid))
+            ema_long = int(ema_cfg.params.get("long_ema_period", ema_long))
         features = []
         for ref in instruments:
             bars = store.get_trailing_prices(ref.id, trade_date)
-            f = compute_features(ref.id, bars, rsi_period=rsi_period, volume_lookback=volume_lookback)
+            f = compute_features(
+                ref.id, bars, rsi_period=rsi_period, volume_lookback=volume_lookback,
+                ema_fast=ema_fast, ema_mid=ema_mid, ema_long=ema_long,
+            )
             if f is not None and f.trade_date == trade_date:
                 features.append(f)
         summary.features = len(features)

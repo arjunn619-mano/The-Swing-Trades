@@ -31,6 +31,10 @@ jobs:
       - name: Install worker
         run: pip install ./worker
 
+      - name: Sync DB schema + register strategies (idempotent; picks up new strategies)
+        working-directory: worker
+        run: python scripts/init_db.py
+
       - name: Refresh universe (cheap; picks up new listings)
         working-directory: worker
         run: python scripts/refresh_universe.py

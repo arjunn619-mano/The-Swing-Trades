@@ -36,6 +36,18 @@ const STRATEGIES = [
       "Volume confirmation: ≥ 1.5× the 14-day average and > 50,000 shares",
     ],
   },
+  {
+    name: "EMA Base Breakout",
+    key: "ema_base_breakout",
+    idea: "A stock basing at its long EMA, reclaiming short-term momentum while Supertrend is still bearish — an early pre-breakout setup.",
+    rules: [
+      "Green candle: Close > Open",
+      "Above the short EMAs: Close > EMA9 and Close > EMA15",
+      "Within ±2.5% of EMA200 (hugging the long EMA)",
+      "Still below Supertrend (ATR 10, 3.0) — the red zone",
+      "Volume > 50,000 shares (liquidity floor)",
+    ],
+  },
 ];
 
 export default async function StrategiesPage() {
@@ -49,7 +61,7 @@ export default async function StrategiesPage() {
 
       <StorageStatus storage={storage} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {STRATEGIES.map((s) => (
           <Card key={s.key} className="space-y-3">
             <div>
