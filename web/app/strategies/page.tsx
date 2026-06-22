@@ -1,4 +1,6 @@
 import { Badge, Card, SectionHeading } from "@/components/ui";
+import { StorageStatus } from "@/components/StorageStatus";
+import { getStorage } from "@/lib/queries";
 
 export const revalidate = 3600;
 
@@ -36,13 +38,16 @@ const STRATEGIES = [
   },
 ];
 
-export default function StrategiesPage() {
+export default async function StrategiesPage() {
+  const storage = await getStorage();
   return (
     <div className="space-y-6">
       <SectionHeading
         title="Strategies"
         subtitle="The exact rules each screen applies every evening. Parameters are fixed in advance (no tuning on the data) so the measured edge stays honest."
       />
+
+      <StorageStatus storage={storage} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {STRATEGIES.map((s) => (

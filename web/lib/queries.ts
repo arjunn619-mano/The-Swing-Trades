@@ -326,3 +326,66 @@ export async function getStarred(): Promise<StarredRow[]> {
     return [];
   }
 }
+
+export type StorageTable = {
+  name: string;
+  totalBytes: number;
+  totalPretty: string;
+  heapPretty: string;
+  indexesPretty: string;
+  rows: number | null;
+};
+
+export type Storage = {
+  ok: boolean;
+  usedBytes: number;
+  usedPretty: string;
+  capBytes: number;
+  tables: StorageTable[];
+};
+
+// Neon Free plan storage allowance: 0.5 GB per project (current as of 2026).
+const NEON_FREE_CAP_BYTES = 536_870_912;
+
+export async function getStorage(): Promise<Storage> {
+  const empty: Storage = { ok: false, usedBytes: 0, usedPretty: "—", capBytes: NEON_FREE_CAP_BYTES, tables: [] };
+  if (!sql) return empty;
+  try {
+    const [tot] = await sql`
+      SELECT pg_database_size(current_database()) AS bytes,
+             pg_size_pretty(pg_database_size(current_database())) AS pretty`;
+    const rows = await sql`
+      SELECT t.relname AS table_name,
+             pg_total_relation_size(c.oid) AS total_bytes,
+             pg_size_pretty(pg_total_relation_size(c.oid)) AS total_pretty,
+             pg_size_pretty(pg_relation_size(c.oid)) AS heap_pretty,
+             pg_size_pretty(pg_indexes_size(c.oid)) AS indexes_pretty,
+             t.n_live_tup AS rows_live,
+             c.reltuples::bigint AS rows_planner
+      FROM pg_stat_user_tables t
+      JOIN pg_class c ON c.oid = (quote_ident(t.schemaname) || '.' || quote_ident(t.relname))::regclass
+      ORDER BY pg_total_relation_size(c.oid) DESC
+      LIMIT 8`;
+    return {
+      ok: true,
+      usedBytes: Number(tot?.bytes ?? 0),
+      usedPretty: tot?.pretty ?? "—",
+      capBytes: NEON_FREE_CAP_BYTES,
+      tables: rows.map((r) => {
+        const live = Number(r.rows_live ?? 0);
+        const planner = Number(r.rows_planner ?? 0);
+        return {
+          name: r.table_name as string,
+          totalBytes: Number(r.total_bytes ?? 0),
+          totalPretty: (r.total_pretty as string) ?? "—",
+          heapPretty: (r.heap_pretty as string) ?? "—",
+          indexesPretty: (r.indexes_pretty as string) ?? "—",
+          rows: live > 0 ? live : planner > 0 ? planner : 0,
+        };
+      }),
+    };
+  } catch (e) {
+    console.error("getStorage failed:", e);
+    return empty;
+  }
+}
