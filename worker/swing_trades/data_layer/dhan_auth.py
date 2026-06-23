@@ -9,6 +9,7 @@ mockable. `http_post` and `totp_code` are injectable so this is fully unit-teste
 """
 from __future__ import annotations
 
+import time
 from typing import Callable, Optional
 
 from .models import TokenInfo
@@ -22,6 +23,11 @@ def current_totp(totp_secret: str) -> str:
     return pyotp.TOTP(totp_secret).now()
 
 
+def _seconds_to_next_totp_window(period: int = 30) -> float:
+    """Time until the TOTP code rolls over, so a retry uses a genuinely fresh code."""
+    return period - (time.time() % period) + 1.0
+
+
 def generate_access_token(
     client_id: str,
     pin: str,
@@ -30,25 +36,53 @@ def generate_access_token(
     http_post: Optional[Callable] = None,
     totp_code: Optional[str] = None,
     timeout: int = 30,
+    retries: int = 1,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> TokenInfo:
+    """Mint a Dhan access token from PIN + TOTP.
+
+    Dhan returns HTTP 200 with a {message, status} body (no token) when it rejects the
+    login — most often a TOTP code that crossed the 30-second boundary between minting
+    and use. On that, wait for the next TOTP window and retry once with a fresh code.
+    The wait keeps retries GENTLE (a ~30s gap, never a rapid burst) so we don't trip
+    Dhan's auth anti-abuse throttle. If every attempt fails, the actual Dhan message is
+    surfaced in the error so the cause is visible in the logs.
+    """
     if http_post is None:
         import requests  # lazy import
 
         http_post = requests.post
 
-    code = totp_code or current_totp(totp_secret)
-    resp = http_post(
-        AUTH_URL,
-        params={"dhanClientId": client_id, "pin": pin, "totp": code},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    token = data.get("accessToken") or data.get("access_token")
-    if not token:
-        raise RuntimeError(f"No accessToken in auth response: keys={list(data)}")
-    return TokenInfo(
-        access_token=token,
-        expiry_time=data.get("expiryTime"),
-        client_id=data.get("dhanClientId", client_id),
+    last_status = last_message = None
+    data: dict = {}
+    attempts = retries + 1
+    for attempt in range(attempts):
+        # First attempt may use an injected code (deterministic tests); retries always
+        # mint a fresh code after the TOTP window rolls over.
+        if attempt == 0:
+            code = totp_code or current_totp(totp_secret)
+        else:
+            sleep(_seconds_to_next_totp_window())
+            code = current_totp(totp_secret)
+
+        resp = http_post(
+            AUTH_URL,
+            params={"dhanClientId": client_id, "pin": pin, "totp": code},
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        token = data.get("accessToken") or data.get("access_token")
+        if token:
+            return TokenInfo(
+                access_token=token,
+                expiry_time=data.get("expiryTime"),
+                client_id=data.get("dhanClientId", client_id),
+            )
+        last_status = data.get("status")
+        last_message = data.get("message")
+
+    raise RuntimeError(
+        f"Dhan login failed after {attempts} attempt(s) — no accessToken. "
+        f"status={last_status!r} message={last_message!r} response_keys={list(data)}"
     )

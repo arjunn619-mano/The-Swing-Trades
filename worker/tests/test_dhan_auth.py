@@ -38,7 +38,39 @@ def test_generate_token_missing_token_raises():
         return FakeResp({"error": "bad pin"})
 
     with pytest.raises(RuntimeError):
-        dhan_auth.generate_access_token("C1", "1234", "S", http_post=fake_post, totp_code="000000")
+        dhan_auth.generate_access_token(
+            "C1", "1234", "S", http_post=fake_post, totp_code="000000", retries=0
+        )
+
+
+def test_generate_token_surfaces_dhan_message():
+    # Dhan rejects the login with a 200 + {message,status}; the actual message must surface.
+    def fake_post(url, params=None, timeout=None):
+        return FakeResp({"status": "failed", "message": "Invalid TOTP"})
+
+    with pytest.raises(RuntimeError, match="Invalid TOTP"):
+        dhan_auth.generate_access_token(
+            "C1", "1234", "S", http_post=fake_post, totp_code="000000", retries=0
+        )
+
+
+def test_generate_token_retries_with_fresh_code_then_succeeds():
+    import pyotp
+
+    calls = {"n": 0}
+
+    def fake_post(url, params=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return FakeResp({"status": "failed", "message": "Invalid TOTP"})  # first try fails
+        return FakeResp({"accessToken": "JWT-OK", "dhanClientId": "C1"})
+
+    tok = dhan_auth.generate_access_token(
+        "C1", "1234", pyotp.random_base32(), http_post=fake_post,
+        totp_code="111111", sleep=lambda *_: None,  # no real wait in the test
+    )
+    assert tok.access_token == "JWT-OK"
+    assert calls["n"] == 2  # retried once
 
 
 def test_current_totp_is_six_digits():
