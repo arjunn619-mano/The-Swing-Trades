@@ -213,6 +213,44 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
   }
 }
 
+// Tracker rows (same shape/columns as getTrackerEntries) but only for starred instruments —
+// powers the Starred page with the identical TrackerView layout.
+export async function getStarredTracker(): Promise<TrackerRow[]> {
+  if (!sql) return [];
+  try {
+    const rows = await sql`
+      SELECT t.instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
+             t.first_seen_date, t.entry_close, t.appearance_count, t.status,
+             o.return_vs_close, o.trading_day_n, o.close AS current_close
+      FROM tracker_entries t
+      JOIN starred sr ON sr.instrument_id = t.instrument_id
+      JOIN instruments i ON i.id = t.instrument_id
+      JOIN strategies st ON st.id = t.strategy_id
+      LEFT JOIN LATERAL (
+        SELECT return_vs_close, trading_day_n, close FROM tracker_observations
+        WHERE tracker_entry_id = t.id ORDER BY trade_date DESC LIMIT 1
+      ) o ON TRUE
+      ORDER BY t.first_seen_date DESC, i.nse_symbol
+      LIMIT 3000`;
+    return rows.map((r) => ({
+      instrumentId: r.instrument_id,
+      symbol: r.nse_symbol ?? r.symbol_name,
+      name: r.symbol_name,
+      exchange: r.exchange_pref,
+      strategy: r.strategy,
+      firstSeenDate: r.first_seen_date,
+      entryClose: num(r.entry_close),
+      currentClose: num(r.current_close),
+      appearanceCount: r.appearance_count ?? 1,
+      status: r.status,
+      latestReturn: num(r.return_vs_close),
+      dayN: r.trading_day_n ?? null,
+    }));
+  } catch {
+    return []; // starred / tracker tables may not exist yet
+  }
+}
+
 export async function getNewListings(): Promise<NewListing[]> {
   if (!sql) return [];
   try {
