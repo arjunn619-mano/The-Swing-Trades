@@ -20,6 +20,8 @@ EXPECTED_TABLES = (
     "option_contracts",
     "option_tracker",
     "option_observations",
+    "news_events",
+    "news_event_sources",
 )
 
 

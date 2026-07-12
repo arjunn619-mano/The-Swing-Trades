@@ -197,3 +197,77 @@ CREATE INDEX IF NOT EXISTS idx_option_contracts_underlying ON option_contracts (
 CREATE INDEX IF NOT EXISTS idx_option_contracts_expiry ON option_contracts (expiry_date);
 CREATE INDEX IF NOT EXISTS idx_option_tracker_status ON option_tracker (status);
 CREATE INDEX IF NOT EXISTS idx_option_observations_tracker ON option_observations (tracker_id);
+
+-- === News-driven "positive news" strategy (news_positive) ===
+-- One frozen 10-value catalyst enum, tagged on both the audit trail (scan_signals) and the
+-- tracker entry so hit-rate can later be sliced BY catalyst type. Nullable everywhere: the
+-- systematic strategies (rsi/ema/etc.) leave these NULL; only news_positive rows carry them.
+-- Added via ADD COLUMN IF NOT EXISTS so re-running init_db is a no-op (v1 idempotency lesson).
+ALTER TABLE tracker_entries
+    ADD COLUMN IF NOT EXISTS catalyst_tag       TEXT,   -- one of the 10 enum values (see CHECK below)
+    ADD COLUMN IF NOT EXISTS catalyst_source    TEXT,   -- BSE | NSE | RSS_GNEWS | RSS_ET | RSS_LIVEMINT | RSS_PRWIRE | RSS_MC
+    ADD COLUMN IF NOT EXISTS catalyst_decision  TEXT,   -- DETERMINISTIC | SEMI_LLM | LLM_ONLY
+    ADD COLUMN IF NOT EXISTS catalyst_event_raw TEXT,   -- verbatim BSE CATEGORYNAME|SUBCATNAME or NSE subject
+    ADD COLUMN IF NOT EXISTS catalyst_headline  TEXT,
+    ADD COLUMN IF NOT EXISTS catalyst_url       TEXT,   -- NSURL / PDF / attchmntFile
+    ADD COLUMN IF NOT EXISTS llm_event_type     TEXT,   -- Gemini/Haiku event_type (nullable for deterministic rows)
+    ADD COLUMN IF NOT EXISTS llm_sentiment      TEXT;   -- positive | neutral | negative (nullable for deterministic rows)
+
+ALTER TABLE scan_signals
+    ADD COLUMN IF NOT EXISTS catalyst_tag       TEXT,
+    ADD COLUMN IF NOT EXISTS catalyst_source    TEXT,
+    ADD COLUMN IF NOT EXISTS catalyst_decision  TEXT,   -- audit incl. dedup decision (NEW_ENROLMENT | APPEARANCE_INCREMENT | MERGED)
+    ADD COLUMN IF NOT EXISTS catalyst_event_raw TEXT,
+    ADD COLUMN IF NOT EXISTS catalyst_headline  TEXT,
+    ADD COLUMN IF NOT EXISTS catalyst_url       TEXT,
+    ADD COLUMN IF NOT EXISTS llm_event_type     TEXT,
+    ADD COLUMN IF NOT EXISTS llm_sentiment      TEXT;
+
+-- The 10-value catalyst enum, enforced at the DB (adding a value later is a deliberate migration,
+-- which keeps the sliced hit-rate history stable). ADD CONSTRAINT has no IF NOT EXISTS, so guard it.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tracker_entries_catalyst_tag_chk') THEN
+        ALTER TABLE tracker_entries ADD CONSTRAINT tracker_entries_catalyst_tag_chk
+            CHECK (catalyst_tag IS NULL OR catalyst_tag IN (
+                'RESULTS_POSITIVE','ORDER_WIN','ACQUISITION','BUYBACK','PARTNERSHIP',
+                'NEW_PRODUCT','EXPANSION_CAPEX','RATING_UPGRADE','FUND_RAISING','OTHER_POSITIVE'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scan_signals_catalyst_tag_chk') THEN
+        ALTER TABLE scan_signals ADD CONSTRAINT scan_signals_catalyst_tag_chk
+            CHECK (catalyst_tag IS NULL OR catalyst_tag IN (
+                'RESULTS_POSITIVE','ORDER_WIN','ACQUISITION','BUYBACK','PARTNERSHIP',
+                'NEW_PRODUCT','EXPANSION_CAPEX','RATING_UPGRADE','FUND_RAISING','OTHER_POSITIVE'));
+    END IF;
+END $$;
+
+-- News-event ledger: the canonical (isin x catalyst_tag x day-window) event. Stage-B dedup upserts
+-- here — an open event in-window MERGES onto its row (attach source, upgrade provenance) instead of
+-- creating a duplicate tracker entry. `enrolled` flips true once the EOD scan prices the entry.
+CREATE TABLE IF NOT EXISTS news_events (
+    id               BIGSERIAL PRIMARY KEY,
+    isin             TEXT NOT NULL,
+    instrument_id    BIGINT REFERENCES instruments(id) ON DELETE SET NULL,
+    catalyst_tag     TEXT NOT NULL,
+    event_date       DATE NOT NULL,                              -- window start = first source timestamp
+    window_end_date  DATE NOT NULL,                              -- event_date + NEWS_DEDUP_WINDOW_DAYS
+    provenance       TEXT NOT NULL DEFAULT 'rss_unconfirmed',    -- rss_unconfirmed | exchange_confirmed
+    headline         TEXT,
+    enrolled         BOOLEAN NOT NULL DEFAULT FALSE,             -- flipped once a tracker entry is priced
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_news_events_lookup ON news_events (isin, catalyst_tag, event_date);
+CREATE INDEX IF NOT EXISTS idx_news_events_unenrolled ON news_events (enrolled) WHERE enrolled = FALSE;
+
+-- Deterministic per-source idempotency: the same filing/headline re-ingested any number of times
+-- collapses on UNIQUE(source_uid), so re-runs never double-count a source onto an event.
+CREATE TABLE IF NOT EXISTS news_event_sources (
+    id           BIGSERIAL PRIMARY KEY,
+    event_id     BIGINT NOT NULL REFERENCES news_events(id) ON DELETE CASCADE,
+    source_uid   TEXT UNIQUE NOT NULL,                           -- 'bse:'+NEWSID | 'nse:'+sha1 | 'rss:'+sha1
+    source       TEXT NOT NULL,                                  -- BSE | NSE | RSS_GNEWS | ...
+    url          TEXT,
+    fetched_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_news_event_sources_event ON news_event_sources (event_id);

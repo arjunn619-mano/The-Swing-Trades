@@ -30,3 +30,27 @@ def test_key_unique_constraints_present():
 def test_entry_close_not_null():
     # Rule 3: the permanent entry reference must always exist.
     assert "entry_close numeric(18,4) not null" in _norm(schema_sql())
+
+
+def test_news_tables_present():
+    sql = _norm(schema_sql())
+    assert "create table if not exists news_events" in sql
+    assert "create table if not exists news_event_sources" in sql
+    assert "source_uid text unique not null" in sql          # per-source idempotency (dedup)
+
+
+def test_catalyst_enum_enforced():
+    sql = _norm(schema_sql())
+    # the 10 frozen catalyst values are enforced by a CHECK on both tables
+    for tag in (
+        "results_positive", "order_win", "acquisition", "buyback", "partnership",
+        "new_product", "expansion_capex", "rating_upgrade", "fund_raising", "other_positive",
+    ):
+        assert tag in sql
+
+
+def test_news_columns_bolt_on_idempotently():
+    # Re-running init_db must be a no-op: every added column is guarded with IF NOT EXISTS.
+    sql = _norm(schema_sql())
+    for col in ("catalyst_tag", "catalyst_source", "catalyst_decision", "llm_event_type", "llm_sentiment"):
+        assert f"add column if not exists {col}" in sql
