@@ -33,9 +33,13 @@ BSE = json.dumps({"Table": [
 ], "Table1": [{"ROWCNT": 2}]})
 
 
+_EMPTY = json.dumps({"Table": [], "Table1": [{"ROWCNT": 0}]})
+
+
 def fake_get(body=BSE, status=200, ct="application/json"):
     def _get(url, headers=None, params=None):
-        return FetchResult(status, ct, body)
+        page = str((params or {}).get("pageno", "1"))
+        return FetchResult(status, ct, body if page == "1" else _EMPTY)  # page-aware so pagination stops
     return _get
 
 

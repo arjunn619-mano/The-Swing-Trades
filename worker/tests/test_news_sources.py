@@ -21,9 +21,14 @@ BSE_OK = json.dumps({
 EMPTY = json.dumps({"Table": [], "Table1": [{"ROWCNT": 0}]})
 
 
-def fake_get(status=200, ct="application/json", body=""):
+def fake_get(status=200, ct="application/json", body="", pages=None):
+    # Page-aware: `body` on page 1 and EMPTY on page >= 2 (so pagination terminates), unless `pages`
+    # gives explicit per-page bodies.
     def _get(url, headers=None, params=None):
-        return FetchResult(status, ct, body)
+        page = str((params or {}).get("pageno", "1"))
+        if pages is not None:
+            return FetchResult(status, ct, pages.get(page, EMPTY))
+        return FetchResult(status, ct, body if page == "1" else EMPTY)
     return _get
 
 
@@ -92,3 +97,16 @@ def test_collect_transport_error_critical_never_raises():
         raise ConnectionError("blocked by firewall")
     items, h = BseAdapter().collect(TD, http_get=boom, is_trading_day=True)
     assert h.status == HealthStatus.CRITICAL and h.failed_check == "http" and items == []
+
+
+def test_collect_paginates_until_empty_page():
+    p1 = json.dumps({"Table": [{"SCRIP_CD": 1, "SLONGNAME": "A Ltd", "CATEGORYNAME": "X",
+                                 "HEADLINE": "h1", "NEWS_DT": "2026-07-13T10:00:00", "NEWSID": "a1"}],
+                     "Table1": [{"ROWCNT": 1}]})
+    p2 = json.dumps({"Table": [{"SCRIP_CD": 2, "SLONGNAME": "B Ltd", "CATEGORYNAME": "X",
+                                 "HEADLINE": "h2", "NEWS_DT": "2026-07-13T09:00:00", "NEWSID": "b1"}],
+                     "Table1": [{"ROWCNT": 1}]})
+    get = fake_get(pages={"1": p1, "2": p2})  # page 3 -> EMPTY -> stop
+    items, h = BseAdapter().collect(TD, http_get=get, is_trading_day=True, soft_min=1)
+    assert h.status == HealthStatus.OK
+    assert {it.source_uid for it in items} == {"bse:a1", "bse:b1"}  # both pages combined

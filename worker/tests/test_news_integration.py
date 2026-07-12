@@ -27,8 +27,12 @@ BSE_ORDER = json.dumps({"Table": [
 ], "Table1": [{"ROWCNT": 1}]})
 
 
+_EMPTY = json.dumps({"Table": [], "Table1": [{"ROWCNT": 0}]})
+
+
 def fake_get(url, headers=None, params=None):
-    return FetchResult(200, "application/json", BSE_ORDER)
+    page = str((params or {}).get("pageno", "1"))
+    return FetchResult(200, "application/json", BSE_ORDER if page == "1" else _EMPTY)  # page-aware
 
 
 class FakeClient:
@@ -94,7 +98,8 @@ def test_illiquid_news_pick_priced_despite_turnover_floor():
          "NEWS_DT": "2026-07-13T15:00:00", "NEWSID": "x1"}], "Table1": [{"ROWCNT": 1}]})
 
     def get(url, headers=None, params=None):
-        return FetchResult(200, "application/json", bse)
+        page = str((params or {}).get("pageno", "1"))
+        return FetchResult(200, "application/json", bse if page == "1" else _EMPTY)
 
     capture_news(TD, adapters=[BseAdapter()], http_get=get, resolver=resolver, store=s, log_only_count=True)
     andhra = next(r for r in s.instruments if r.isin == "INE714B01016")

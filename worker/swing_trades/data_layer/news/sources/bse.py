@@ -78,13 +78,13 @@ def parse_bse(body: str, trade_date: _dt.date) -> ParseResult:
     return ParseResult(items, raw_rows=len(rows), parse_failures=failures)
 
 
-def fetch_bse(trade_date: _dt.date, http_get: Callable) -> FetchResult:
+def fetch_bse(trade_date: _dt.date, http_get: Callable, page: int = 1) -> FetchResult:
     """http_get(url, headers, params) -> FetchResult. Injected so this is testable + can run from
-    the Oracle VM IP unchanged. Queries the single trade date (BSE takes YYYYMMDD)."""
+    the Oracle VM IP unchanged. Queries the single trade date (BSE takes YYYYMMDD), one page at a time."""
     ymd = trade_date.strftime("%Y%m%d")
     params = {
         "strCat": "-1", "strPrevDate": ymd, "strToDate": ymd,
-        "strScrip": "", "strSearch": "P", "strType": "C", "pageno": "1",
+        "strScrip": "", "strSearch": "P", "strType": "C", "pageno": str(page),
     }
     return http_get(BSE_URL, headers=BSE_HEADERS, params=params)
 
@@ -101,17 +101,47 @@ class BseAdapter:
         soft_min: int = 50,
         log_only_count: bool = False,
         today: Optional[_dt.date] = None,
+        max_pages: int = 60,
     ) -> tuple[list[RawNewsItem], SourceHealth]:
+        # Page 1 drives the transport/content-type health checks; then walk pages until one comes
+        # back empty (or the safety cap), deduping by source_uid so page overlap is harmless. The
+        # BSE feed paginates ~45 rows/page and a busy day is hundreds of filings, so a single page
+        # would miss the bulk of the day's catalysts.
         try:
-            fetch = fetch_bse(trade_date, http_get)
+            fetch1 = fetch_bse(trade_date, http_get, page=1)
         except Exception as e:  # transport blew up — never raise into the scan
-            fetch = FetchResult(0, "", "", error=str(e))
-        parsed = parse_bse(fetch.body, trade_date) if not fetch.error else ParseResult([], 0, 0)
-        latest = max((it.event_date for it in parsed.items), default=None)
+            fetch1 = FetchResult(0, "", "", error=str(e))
+        parsed = parse_bse(fetch1.body, trade_date) if not fetch1.error else ParseResult([], 0, 0)
+
+        all_items: list[RawNewsItem] = list(parsed.items)
+        raw_rows, failures = parsed.raw_rows, parsed.parse_failures
+        if not fetch1.error and parsed.raw_rows > 0:
+            seen = {it.source_uid for it in all_items}
+            page = 2
+            while page <= max_pages:
+                try:
+                    fp = fetch_bse(trade_date, http_get, page=page)
+                except Exception:
+                    break
+                if fp.error:
+                    break
+                pp = parse_bse(fp.body, trade_date)
+                if pp.raw_rows == 0:
+                    break  # no more pages
+                for it in pp.items:
+                    if it.source_uid not in seen:
+                        seen.add(it.source_uid)
+                        all_items.append(it)
+                raw_rows += pp.raw_rows
+                failures += pp.parse_failures
+                page += 1
+
+        combined = ParseResult(all_items, raw_rows, failures)
+        latest = max((it.event_date for it in all_items), default=None)
         health = evaluate_health(
-            "BSE", fetch, parsed, is_trading_day=is_trading_day, soft_min=soft_min,
+            "BSE", fetch1, combined, is_trading_day=is_trading_day, soft_min=soft_min,
             expect_json=True, latest_date=latest, today=today or trade_date,
             log_only_count=log_only_count,
         )
-        items = parsed.items if health.status != HealthStatus.CRITICAL else []
+        items = all_items if health.status != HealthStatus.CRITICAL else []
         return items, health
