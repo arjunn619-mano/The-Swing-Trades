@@ -26,6 +26,20 @@ class InstrumentRef:
     series: Optional[str] = None  # BSE group / NSE series — drives the Step 0b turnover gate
 
 
+@dataclass(frozen=True)
+class NewsEventRow:
+    """One row of the news_events ledger (the canonical isin x catalyst_tag x window event)."""
+
+    id: int
+    isin: str
+    instrument_id: Optional[int]
+    catalyst_tag: str
+    event_date: _dt.date
+    provenance: str
+    headline: Optional[str]
+    enrolled: bool
+
+
 class ScanStore:
     """Interface. See FakeStore for the canonical in-memory semantics."""
 
@@ -48,6 +62,15 @@ class ScanStore:
     def latest_entry_returns(self, strategy_id: int) -> list[float]: raise NotImplementedError
     def universe_window_returns(self, trade_date: _dt.date, lookback: int) -> list[float]: raise NotImplementedError
     def upsert_strategy_metrics(self, strategy_id: int, metrics) -> None: raise NotImplementedError
+    # --- news_positive: instrument expand-on-the-fly + news_events ledger (Stage-B dedup) ---
+    def ensure_instrument(self, instrument) -> int: raise NotImplementedError
+    def news_source_exists(self, source_uid: str) -> bool: raise NotImplementedError
+    def find_open_news_event(self, isin: str, catalyst_tag: str, min_date: _dt.date, max_date: _dt.date): raise NotImplementedError
+    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline) -> int: raise NotImplementedError
+    def attach_news_source(self, event_id: int, source_uid: str, source: str, url: Optional[str]) -> None: raise NotImplementedError
+    def set_news_event_provenance(self, event_id: int, provenance: str) -> None: raise NotImplementedError
+    def get_unenrolled_news_events(self) -> list: raise NotImplementedError
+    def mark_news_event_enrolled(self, event_id: int) -> None: raise NotImplementedError
 
 
 class FakeStore(ScanStore):
@@ -61,6 +84,9 @@ class FakeStore(ScanStore):
         self.observations: dict[tuple[int, int, _dt.date], dict] = {}
         self.metrics: dict[tuple[int, int], object] = {}
         self._run_seq = 0
+        self.news_events: dict[int, dict] = {}
+        self.news_source_uids: set[str] = set()
+        self._news_seq = 0
 
     # --- setup helpers (test convenience) ---
     def add_instrument(self, ref: InstrumentRef) -> None:
@@ -213,6 +239,58 @@ class FakeStore(ScanStore):
 
     def upsert_strategy_metrics(self, strategy_id: int, metrics) -> None:
         self.metrics[(strategy_id, getattr(metrics, "horizon_days", 0))] = metrics
+
+    # --- news_positive ---
+    def ensure_instrument(self, instrument) -> int:
+        for ref in self.instruments:
+            if ref.isin == instrument.isin:
+                return ref.id
+        new_id = max((r.id for r in self.instruments), default=0) + 1
+        seg = getattr(instrument, "exchange_segment", None) or f"{instrument.exchange_pref}_EQ"
+        self.instruments.append(
+            InstrumentRef(id=new_id, isin=instrument.isin, security_id=instrument.security_id,
+                          exchange_segment=seg, series=instrument.series)
+        )
+        return new_id
+
+    def news_source_exists(self, source_uid: str) -> bool:
+        return source_uid in self.news_source_uids
+
+    def _news_row(self, e: dict) -> NewsEventRow:
+        return NewsEventRow(id=e["id"], isin=e["isin"], instrument_id=e["instrument_id"],
+                            catalyst_tag=e["catalyst_tag"], event_date=e["event_date"],
+                            provenance=e["provenance"], headline=e["headline"], enrolled=e["enrolled"])
+
+    def find_open_news_event(self, isin, catalyst_tag, min_date, max_date):
+        best = None
+        for e in self.news_events.values():
+            if e["isin"] == isin and e["catalyst_tag"] == catalyst_tag and min_date <= e["event_date"] <= max_date:
+                if best is None or e["event_date"] > best["event_date"]:
+                    best = e
+        return self._news_row(best) if best else None
+
+    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline) -> int:
+        self._news_seq += 1
+        self.news_events[self._news_seq] = {
+            "id": self._news_seq, "isin": isin, "instrument_id": instrument_id,
+            "catalyst_tag": catalyst_tag, "event_date": event_date, "window_end_date": window_end_date,
+            "provenance": provenance, "headline": headline, "enrolled": False,
+        }
+        return self._news_seq
+
+    def attach_news_source(self, event_id, source_uid, source, url) -> None:
+        self.news_source_uids.add(source_uid)  # UNIQUE(source_uid) in Postgres; idempotency here
+
+    def set_news_event_provenance(self, event_id, provenance) -> None:
+        if event_id in self.news_events:
+            self.news_events[event_id]["provenance"] = provenance
+
+    def get_unenrolled_news_events(self) -> list:
+        return [self._news_row(e) for e in self.news_events.values() if not e["enrolled"]]
+
+    def mark_news_event_enrolled(self, event_id) -> None:
+        if event_id in self.news_events:
+            self.news_events[event_id]["enrolled"] = True
 
     # --- test convenience counts ---
     def count_signals(self) -> int:
@@ -426,4 +504,79 @@ class PostgresStore(ScanStore):
                 (strategy_id, m.horizon_days, m.sample_size, m.hit_rate, m.base_rate, m.excess_hit_rate,
                  m.avg_win, m.avg_loss, m.expectancy, m.median_return, m.hit_rate_at_5pct, m.hit_rate_at_10pct),
             )
+        self.conn.commit()
+
+    # --- news_positive ---
+    def ensure_instrument(self, instrument) -> int:
+        with self._cur() as cur:
+            cur.execute(
+                "INSERT INTO instruments (isin, security_id, nse_symbol, bse_scrip_code, exchange_pref, "
+                "segment, symbol_name, series, lot_size, asm_gsm_flag, active, updated_at) "
+                "VALUES (%s,%s,%s,%s,%s,'E',%s,%s,%s,%s,TRUE,now()) "
+                "ON CONFLICT (isin) DO UPDATE SET active=TRUE, updated_at=now() RETURNING id",
+                (instrument.isin, instrument.security_id, instrument.nse_symbol, instrument.bse_scrip_code,
+                 instrument.exchange_pref, instrument.symbol_name, instrument.series,
+                 instrument.lot_size, instrument.asm_gsm_flag),
+            )
+            iid = cur.fetchone()[0]
+        self.conn.commit()
+        return iid
+
+    def news_source_exists(self, source_uid: str) -> bool:
+        with self._cur() as cur:
+            cur.execute("SELECT 1 FROM news_event_sources WHERE source_uid=%s", (source_uid,))
+            return cur.fetchone() is not None
+
+    def find_open_news_event(self, isin, catalyst_tag, min_date, max_date):
+        with self._cur() as cur:
+            cur.execute(
+                "SELECT id, isin, instrument_id, catalyst_tag, event_date, provenance, headline, enrolled "
+                "FROM news_events WHERE isin=%s AND catalyst_tag=%s AND event_date BETWEEN %s AND %s "
+                "ORDER BY event_date DESC LIMIT 1",
+                (isin, catalyst_tag, min_date, max_date),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        return NewsEventRow(id=row[0], isin=row[1], instrument_id=row[2], catalyst_tag=row[3],
+                            event_date=row[4], provenance=row[5], headline=row[6], enrolled=row[7])
+
+    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline) -> int:
+        with self._cur() as cur:
+            cur.execute(
+                "INSERT INTO news_events (isin, instrument_id, catalyst_tag, event_date, window_end_date, "
+                "provenance, headline) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                (isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline),
+            )
+            eid = cur.fetchone()[0]
+        self.conn.commit()
+        return eid
+
+    def attach_news_source(self, event_id, source_uid, source, url) -> None:
+        with self._cur() as cur:
+            cur.execute(
+                "INSERT INTO news_event_sources (event_id, source_uid, source, url) VALUES (%s,%s,%s,%s) "
+                "ON CONFLICT (source_uid) DO NOTHING",
+                (event_id, source_uid, source, url),
+            )
+        self.conn.commit()
+
+    def set_news_event_provenance(self, event_id, provenance) -> None:
+        with self._cur() as cur:
+            cur.execute("UPDATE news_events SET provenance=%s, updated_at=now() WHERE id=%s", (provenance, event_id))
+        self.conn.commit()
+
+    def get_unenrolled_news_events(self) -> list:
+        with self._cur() as cur:
+            cur.execute(
+                "SELECT id, isin, instrument_id, catalyst_tag, event_date, provenance, headline, enrolled "
+                "FROM news_events WHERE enrolled = FALSE ORDER BY event_date"
+            )
+            rows = cur.fetchall()
+        return [NewsEventRow(id=r[0], isin=r[1], instrument_id=r[2], catalyst_tag=r[3], event_date=r[4],
+                             provenance=r[5], headline=r[6], enrolled=r[7]) for r in rows]
+
+    def mark_news_event_enrolled(self, event_id) -> None:
+        with self._cur() as cur:
+            cur.execute("UPDATE news_events SET enrolled=TRUE, updated_at=now() WHERE id=%s", (event_id,))
         self.conn.commit()
