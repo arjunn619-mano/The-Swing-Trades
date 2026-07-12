@@ -89,9 +89,8 @@ export default async function StrategiesPage() {
         <p className="text-sm text-slate-400">
           When a stock qualifies, it becomes a tracker entry keyed on <span className="text-slate-300">(stock × strategy)</span>.
           Its entry price is locked to that day&apos;s close and never changes. Each evening for the next 100 trading days, the
-          entry&apos;s return is recorded. A strategy&apos;s <span className="text-slate-300">hit rate</span> is then shown next to the
-          market&apos;s <span className="text-slate-300">base rate</span> — its edge is the <em>excess</em> over the market, not the raw
-          hit rate. Indicators (RSI-14, ATR-10, Supertrend, 14-day average volume) use Wilder&apos;s smoothing.
+          entry&apos;s return is recorded, and a strategy&apos;s <span className="text-slate-300">hit rate</span> is the share of its
+          tracked picks that end up positive. Indicators (RSI-14, ATR-10, Supertrend, 14-day average volume) use Wilder&apos;s smoothing.
         </p>
         <div className="flex flex-wrap gap-1.5 pt-1">
           <Badge tone="blue">RSI(14)</Badge>

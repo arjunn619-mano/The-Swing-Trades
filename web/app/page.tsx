@@ -1,5 +1,5 @@
 import { Badge, ChartLink, DataTable, ReturnBadge, SectionHeading, StatCard } from "@/components/ui";
-import { dateStr, fixed, money, pct } from "@/lib/format";
+import { dateStr, fixed, money } from "@/lib/format";
 import { getLatestSignals, getOverview, getStrategyMetrics, type Metric, type Signal } from "@/lib/queries";
 
 export const revalidate = 300; // ISR: serve cached, refresh every 5 min (visitors hit the CDN, not the DB)
@@ -33,8 +33,8 @@ export default async function Home() {
 
       <section>
         <SectionHeading
-          title="Strategy edge"
-          subtitle="Hit rate shown next to the market base rate — edge is the excess, not the raw rate."
+          title="Strategy hit rate"
+          subtitle="Share of each strategy's tracked picks that are positive, over its tracking horizon."
         />
         <DataTable<Metric>
           rows={metrics}
@@ -42,9 +42,6 @@ export default async function Home() {
           columns={[
             { key: "name", label: "Strategy", render: (m) => <span className="font-medium text-slate-100">{m.displayName}</span> },
             { key: "hit", label: "Hit rate", align: "right", render: (m) => <ReturnBadge value={m.hitRate} /> },
-            { key: "base", label: "Base rate", align: "right", render: (m) => <span className="text-slate-300">{m.baseRate === null ? "—" : pct(m.baseRate)}</span> },
-            { key: "excess", label: "Excess (edge)", align: "right", render: (m) => <ReturnBadge value={m.excessHitRate} /> },
-            { key: "exp", label: "Expectancy", align: "right", render: (m) => <ReturnBadge value={m.expectancy} /> },
             { key: "n", label: "Sample", align: "right", render: (m) => <span className="text-slate-300">{m.sampleSize}</span> },
             { key: "h", label: "Horizon", align: "right", render: (m) => <span className="text-slate-500">{m.horizonDays}d</span> },
           ]}
