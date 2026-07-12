@@ -1,7 +1,11 @@
 """Deterministic ISIN resolver: exact ISIN/scrip, exact + fuzzy name, and the reject-if-ambiguous
 guarantees (a wrong ticker poisons a 100-day window; a miss only costs one observation)."""
 from swing_trades.data_layer.models import UniverseInstrument
-from swing_trades.data_layer.news.resolver import InstrumentResolver, normalize_name
+from swing_trades.data_layer.news.resolver import (
+    InstrumentResolver,
+    build_resolver_from_master,
+    normalize_name,
+)
 
 
 def mk(isin, sec, exch, nsym, scrip, name, series="EQ"):
@@ -78,3 +82,16 @@ def test_same_isin_name_variants_do_not_false_reject():
     # sits between the two variants must still resolve, not reject for a small variant-to-variant margin.
     r = R.resolve(name="Reliance Industriess")  # typo -> not an exact key
     assert r.ok and r.instrument.isin == "INE002A01018"
+
+
+def test_build_resolver_from_master_glues_to_the_instrument_parser():
+    csv = (
+        "SECURITY_ID,EXCH_ID,SEGMENT,ISIN,INSTRUMENT,UNDERLYING_SYMBOL,SYMBOL_NAME,DISPLAY_NAME,SERIES,LOT_SIZE,ASM_GSM_FLAG\n"
+        "2885,NSE,E,INE002A01018,EQUITY,RELIANCE,RELIANCE INDUSTRIES LTD,Reliance Industries,EQ,1,N\n"
+        "500325,BSE,E,INE002A01018,EQUITY,RELIANCE,RELIANCE INDUSTRIES LTD,Reliance Industries,A,1,N\n"
+        "500012,BSE,E,INE714B01016,EQUITY,ANDHRAPET,ANDHRA PETROCHEMICALS,Andhra Petrochemicals,X,1,N\n"
+    )
+    res = build_resolver_from_master(csv)
+    # dual-listed resolves NSE-preferred by BSE scrip; and an SME/illiquid BSE-only name is reachable
+    assert res.resolve(bse_scrip="500325").instrument.exchange_pref == "NSE"
+    assert res.resolve(bse_scrip="500012").instrument.nse_symbol == "ANDHRAPET"  # expand-on-the-fly reach

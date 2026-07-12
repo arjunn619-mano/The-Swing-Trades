@@ -1,0 +1,33 @@
+name: News Capture
+
+on:
+  # Runs DAILY (7 days/week) — companies file corporate news on weekends/holidays too, and the EOD
+  # scan (trading days) prices + enrols whatever this has captured (entry = the next trading close).
+  # Primary trigger is Vercel Cron via workflow_dispatch (reliable, like the EOD scan); the schedule
+  # below is a best-effort GitHub fallback (GitHub's own cron is known to fire late/drop for this repo).
+  # No Dhan secrets needed — uses the public instrument master + the stateless BSE announcements API.
+  workflow_dispatch:
+  schedule:
+    - cron: "30 13 * * *" # 13:30 UTC = 19:00 IST daily (after close / evening filings)
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ALERT_TELEGRAM_BOT_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
+      ALERT_TELEGRAM_CHAT_ID: ${{ secrets.ALERT_TELEGRAM_CHAT_ID }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # OPTIONAL — the deterministic Tier-A backbone runs without it
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install worker
+        run: pip install ./worker
+      - name: Sync DB schema + register strategies (idempotent; ensures news_positive + news tables)
+        working-directory: worker
+        run: python scripts/init_db.py
+      - name: Capture positive corporate news -> news_events ledger
+        working-directory: worker
+        run: python scripts/capture_news.py

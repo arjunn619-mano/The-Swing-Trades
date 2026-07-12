@@ -55,5 +55,25 @@ strategies:
       volume_min_absolute: 50000    # liquidity floor (shares); Supertrend reuses ATR 10 / mult 3.0
       prefer_exchange: "NSE"
 
+  news_positive:
+    display_name: "Positive News"
+    description: "Stocks with positive corporate news — order wins, buybacks, acquisitions, results, partnerships, new products, expansions, rating upgrades, fund-raising. Enrolled from BSE/NSE filings + news feeds; catalyst type tagged for hit-rate-by-catalyst. Research/observation only."
+    active: true
+    params:
+      # Enrolled by the daily news-capture job + the EOD scan's news step (NOT the systematic
+      # feature loop — it has no evaluate() class, so the scan skips it there by design).
+      dedup_window_days: 2
+      fuzzy_headline_threshold: 90
+      llm:
+        model_primary: "gemini-flash-lite-latest"   # free tier; ~1/1000 of daily quota (see build notes)
+        model_fallback: "claude-haiku-4-5"           # ~Rs.150/mo break-glass if Gemini free ever breaks
+        batch_size: 50
+        batch_token_cap: 8000
+        min_call_spacing_s: 5
+      health:
+        bse_soft_min: 50
+        nse_soft_min: 10
+        log_only_count: true   # week-1 calibration: do NOT alarm on low/empty counts yet (hard failures still alarm)
+
 # Default observation window for every tracker entry (trading days). Configurable per Rule 8 / M5.
 tracking_horizon_days: 100

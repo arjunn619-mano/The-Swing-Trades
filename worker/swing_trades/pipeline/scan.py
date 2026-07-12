@@ -49,6 +49,7 @@ class ScanSummary:
     gated_illiquid: int = 0  # widened-group names skipped by the turnover floor (Step 0b)
     per_strategy: dict = field(default_factory=dict)
     skipped_strategies: list = field(default_factory=list)
+    news: dict = field(default_factory=dict)  # news_positive enrolment counts (Step 8)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -80,6 +81,58 @@ def _emit_artifact(artifact_dir: Optional[str], summary: ScanSummary) -> None:
     )
 
 
+def _enrol_news_events(store, trade_date, close_by_instrument, horizon_days):
+    """Price + enrol unenrolled news_events into the news_positive tracker: entry = today's EOD
+    close (permanent, Rule 3), grows forward, no history backfill. Reuses the standard tracker
+    mechanics. A stock already news-tracked from a distinct earlier catalyst gets appearance_count++
+    instead of a new row; a just-activated instrument not yet quoted is skipped (next session prices
+    it). Also observes every active news_positive entry + completes elapsed windows + refreshes
+    metrics. Caller wraps this so it can never break the systematic scan."""
+    strat_id = store.get_strategy_id("news_positive")  # raises if not registered -> caller guards
+    active_ids = {e.instrument_id for e in store.get_active_tracker(strat_id)}
+    created = incremented = no_price = 0
+    for ev in store.get_unenrolled_news_events():
+        if ev.instrument_id is None:
+            continue
+        close = close_by_instrument.get(ev.instrument_id)
+        if close is None:
+            no_price += 1
+            continue
+        if ev.instrument_id in active_ids:
+            store.increment_tracker_entry(ev.instrument_id, strat_id, trade_date)
+            incremented += 1
+        else:
+            store.create_tracker_entry(
+                ev.instrument_id, strat_id, trade_date, close, horizon_days,
+                catalyst_tag=ev.catalyst_tag, catalyst_headline=ev.headline,
+            )
+            active_ids.add(ev.instrument_id)
+            created += 1
+        store.mark_news_event_enrolled(ev.id)
+
+    for e in store.get_active_tracker(strat_id):
+        c = close_by_instrument.get(e.instrument_id)
+        if c is None:
+            continue
+        n = timeutils.trading_days_between(e.first_seen_date, trade_date)
+        rvc = (c / e.entry_close - 1.0) if e.entry_close else None
+        rvo = (c / e.entry_next_open - 1.0) if e.entry_next_open else None
+        store.record_observation(e.instrument_id, strat_id, trade_date, n, c, rvc, rvo)
+    to_complete = [
+        e.instrument_id for e in store.get_active_tracker(strat_id)
+        if timeutils.trading_days_between(e.first_seen_date, trade_date) >= horizon_days
+    ]
+    if to_complete:
+        store.complete_tracker_entries(strat_id, to_complete)
+    metrics = compute_strategy_metrics(
+        store.latest_entry_returns(strat_id),
+        base_returns=store.universe_window_returns(trade_date, horizon_days),
+        horizon_days=horizon_days,
+    )
+    store.upsert_strategy_metrics(strat_id, metrics)
+    return {"created": created, "incremented": incremented, "no_price": no_price}
+
+
 def run_scan(
     trade_date: _dt.date,
     *,
@@ -94,6 +147,7 @@ def run_scan(
     ema_long: int = 200,
     quote_interval: float = 1.1,   # Dhan Quote API limit is 1 req/sec — space the batches
     turnover_floor: float = 0.0,   # Step 0b: min close*volume for a widened BSE X/XT/T name; 0 disables
+    enable_news: bool = False,     # Step 8: price+enrol pending news_events into news_positive
     sleep: Callable[[float], None] = time.sleep,
     artifact_dir: Optional[str] = None,
     alert: Optional[Callable[[str], bool]] = None,
@@ -246,6 +300,16 @@ def run_scan(
             except Exception as err:
                 store.finish_scan_run(run_id, "failed", 0, str(err))
                 raise
+
+        # news_positive: price + enrol any pending news_events. Isolated in its own try/except so a
+        # news failure degrades to zero enrolments while the systematic scan still succeeds.
+        if enable_news:
+            try:
+                summary.news = _enrol_news_events(store, trade_date, close_by_instrument, horizon_days)
+                _log(f"news_positive: {summary.news}")
+            except Exception as err:
+                summary.news = {"error": str(err)}
+                _log(f"news enrolment failed (non-fatal): {err}")
 
         summary.status = "success"
         _emit_artifact(artifact_dir, summary)

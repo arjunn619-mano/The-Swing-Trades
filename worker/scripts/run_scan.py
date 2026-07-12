@@ -47,6 +47,7 @@ def main() -> None:
             strategy_configs=load_strategy_configs(),
             horizon_days=load_tracking_horizon_days(),
             turnover_floor=load_turnover_floor(),
+            enable_news=True,
             artifact_dir="artifacts",
             alert=lambda msg: bool(alert(msg)),
             logger=logger,

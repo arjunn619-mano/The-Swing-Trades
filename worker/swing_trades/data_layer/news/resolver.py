@@ -132,3 +132,16 @@ class InstrumentResolver:
             return ResolveResult(None, "reject", best_score, f"ambiguous vs different co (margin {best_score - runner_score:.0f})")
 
         return ResolveResult(self._by_isin[best_isin], "name_fuzzy", best_score)
+
+
+def build_resolver_from_master(csv_text: str, allowed_series=None) -> InstrumentResolver:
+    """Build a resolver over the Dhan equity master. Defaults to ALL series (allowed_series={}) so
+    news can resolve to SME/illiquid names too (expand-on-the-fly / option B), not just the liquid
+    scan universe. Lazy-imports the instrument parser to keep the resolver module light."""
+    from ..instruments import equity_rows, parse_instrument_csv, resolve_universe
+
+    rows = equity_rows(
+        parse_instrument_csv(csv_text),
+        allowed_series=({} if allowed_series is None else allowed_series),
+    )
+    return InstrumentResolver(resolve_universe(rows))

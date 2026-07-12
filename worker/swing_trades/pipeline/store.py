@@ -54,7 +54,7 @@ class ScanStore:
     def finish_scan_run(self, run_id: int, status: str, qualified_count: int, error: Optional[str] = None) -> None: raise NotImplementedError
     def insert_signals(self, run_id: int, strategy_id: int, trade_date: _dt.date, signals: Sequence[SignalRow]) -> int: raise NotImplementedError
     def get_active_tracker(self, strategy_id: int) -> list[TrackerEntryState]: raise NotImplementedError
-    def create_tracker_entry(self, instrument_id: int, strategy_id: int, first_seen_date: _dt.date, entry_close: float, horizon_days: int) -> None: raise NotImplementedError
+    def create_tracker_entry(self, instrument_id: int, strategy_id: int, first_seen_date: _dt.date, entry_close: float, horizon_days: int, *, catalyst_tag: Optional[str] = None, catalyst_source: Optional[str] = None, catalyst_headline: Optional[str] = None, catalyst_url: Optional[str] = None, catalyst_decision: Optional[str] = None) -> None: raise NotImplementedError
     def increment_tracker_entry(self, instrument_id: int, strategy_id: int, last_seen_date: _dt.date) -> None: raise NotImplementedError
     def complete_tracker_entries(self, strategy_id: int, instrument_ids: Sequence[int]) -> None: raise NotImplementedError
     def fill_pending_next_open(self, trade_date: _dt.date, prev_trading_day: _dt.date, opens_by_instrument: dict[int, float]) -> int: raise NotImplementedError
@@ -173,7 +173,9 @@ class FakeStore(ScanStore):
                 )
         return out
 
-    def create_tracker_entry(self, instrument_id, strategy_id, first_seen_date, entry_close, horizon_days) -> None:
+    def create_tracker_entry(self, instrument_id, strategy_id, first_seen_date, entry_close, horizon_days,
+                             *, catalyst_tag=None, catalyst_source=None, catalyst_headline=None,
+                             catalyst_url=None, catalyst_decision=None) -> None:
         key = (instrument_id, strategy_id)
         if key in self.tracker:  # unique (instrument, strategy) — never double-create
             return
@@ -185,6 +187,7 @@ class FakeStore(ScanStore):
             "last_seen_date": first_seen_date,
             "status": "active",
             "horizon_days": horizon_days,
+            "catalyst_tag": catalyst_tag,
         }
 
     def increment_tracker_entry(self, instrument_id, strategy_id, last_seen_date) -> None:
@@ -410,13 +413,18 @@ class PostgresStore(ScanStore):
                 for iid, fsd, ac, ec, eno, hz in cur.fetchall()
             ]
 
-    def create_tracker_entry(self, instrument_id, strategy_id, first_seen_date, entry_close, horizon_days) -> None:
+    def create_tracker_entry(self, instrument_id, strategy_id, first_seen_date, entry_close, horizon_days,
+                             *, catalyst_tag=None, catalyst_source=None, catalyst_headline=None,
+                             catalyst_url=None, catalyst_decision=None) -> None:
         with self._cur() as cur:
             cur.execute(
                 "INSERT INTO tracker_entries (instrument_id, strategy_id, first_seen_date, entry_close, "
-                "appearance_count, last_seen_date, tracking_horizon_days, status) "
-                "VALUES (%s,%s,%s,%s,1,%s,%s,'active') ON CONFLICT (instrument_id, strategy_id) DO NOTHING",
-                (instrument_id, strategy_id, first_seen_date, entry_close, first_seen_date, horizon_days),
+                "appearance_count, last_seen_date, tracking_horizon_days, status, "
+                "catalyst_tag, catalyst_source, catalyst_headline, catalyst_url, catalyst_decision) "
+                "VALUES (%s,%s,%s,%s,1,%s,%s,'active',%s,%s,%s,%s,%s) "
+                "ON CONFLICT (instrument_id, strategy_id) DO NOTHING",
+                (instrument_id, strategy_id, first_seen_date, entry_close, first_seen_date, horizon_days,
+                 catalyst_tag, catalyst_source, catalyst_headline, catalyst_url, catalyst_decision),
             )
         self.conn.commit()
 
