@@ -84,6 +84,21 @@ def test_transient_error_retries_then_defaults():
     assert calls["n"] == CFG.max_retries and out == [("other", "neutral")]
 
 
+def test_fallback_flip_transient_failure_degrades_not_crashes():
+    # Gemini exhausts its daily quota, then the Haiku fallback FLIP batch hits a transient error.
+    # Must degrade to neutral, never propagate (else the whole nightly capture would crash before
+    # any deterministic Tier-A enrolment is written).
+    def primary(_b):
+        raise QuotaExhausted("PerDay limit")
+
+    def bad_fallback(_b):
+        raise ConnectionError("blip on the flip batch")
+
+    out = classify_batches([item("A", "x")], primary_call=primary, fallback_call=bad_fallback,
+                           config=CFG, sleep=lambda s: None)
+    assert out == [("other", "neutral")]
+
+
 def test_prompt_forbids_tickers_and_includes_the_company():
     p = build_prompt([item("Reliance Industries", "bags large order")])
     assert "NEVER output a stock ticker" in p and "Reliance Industries" in p

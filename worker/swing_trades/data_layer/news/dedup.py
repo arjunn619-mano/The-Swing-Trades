@@ -15,6 +15,7 @@ from rapidfuzz import fuzz
 
 from .models import RawNewsItem
 from .resolver import normalize_name
+from .tagger import classify_catalyst
 
 FUZZY_HEADLINE_THRESHOLD = 90
 
@@ -77,9 +78,11 @@ def cluster_near_duplicates(
 
 
 def representative(cluster: Sequence[RawNewsItem]) -> RawNewsItem:
-    """Pick the item to send to the LLM / carry forward: prefer an exchange filing (authoritative)
-    over RSS, then the longest (most descriptive) headline."""
-    return sorted(
-        cluster,
-        key=lambda it: (0 if it.source in ("BSE", "NSE") else 1, -len(it.headline or "")),
-    )[0]
+    """Pick the item to classify + carry forward. Priority: an exchange filing (authoritative) over
+    RSS, then a member whose category is DETERMINISTICALLY classifiable (so a co-clustered Tier-A
+    filing never loses its tag to a longer non-Tier-A sibling), then the longest headline."""
+    def rank(it: RawNewsItem):
+        deterministic = classify_catalyst(it.category, it.subcategory).is_deterministic
+        return (0 if it.source in ("BSE", "NSE") else 1, 0 if deterministic else 1, -len(it.headline or ""))
+
+    return sorted(cluster, key=rank)[0]

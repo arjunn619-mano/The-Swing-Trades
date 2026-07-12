@@ -90,9 +90,14 @@ def capture_news(
         else:
             pending.append((cluster, rep, cls.tag))
 
-    # 3b. one batched LLM call for all sentiment-ambiguous items (respects the free-tier RPM budget)
+    # 3b. one batched LLM call for all sentiment-ambiguous items (respects the free-tier RPM budget).
+    #     Defense in depth: an LLM failure degrades to neutral (dropped) and must NEVER abort the
+    #     deterministic Tier-A enrolments that run in 3c below.
     if pending:
-        verdicts = llm_classify([rep for _cl, rep, _p in pending])
+        try:
+            verdicts = llm_classify([rep for _cl, rep, _p in pending])
+        except Exception:
+            verdicts = [("other", "neutral")] * len(pending)
         for (cluster, rep, proposed), verdict in zip(pending, verdicts):
             event_type, sentiment = verdict
             tag = finalize_llm_catalyst(proposed, event_type, sentiment)

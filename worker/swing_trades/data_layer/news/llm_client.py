@@ -84,6 +84,7 @@ def classify_batches(
         if not first and config.min_call_spacing_s:
             sleep(config.min_call_spacing_s)
         first = False
+        verdicts = None
         try:
             verdicts = _call_with_retries(fallback_call if using_fallback else primary_call, batch, config, sleep)
         except QuotaExhausted:
@@ -91,12 +92,15 @@ def classify_batches(
                 using_fallback = True
                 if on_fallback:
                     on_fallback(len(items) - len(out))
-                verdicts = _call_with_retries(fallback_call, batch, config, sleep)
-            else:
-                verdicts = [("other", "neutral")] * len(batch)  # give up -> neutral (dropped, not enrolled)
+                try:
+                    verdicts = _call_with_retries(fallback_call, batch, config, sleep)
+                except Exception:
+                    verdicts = None  # even the fallback flip-batch failed -> degrade, NEVER propagate
         except Exception:
-            verdicts = [("other", "neutral")] * len(batch)
-        if len(verdicts) != len(batch):  # never let a short/long reply desync the alignment
+            verdicts = None
+        if verdicts is None:
+            verdicts = [("other", "neutral")] * len(batch)  # degrade -> neutral (dropped, not enrolled)
+        elif len(verdicts) != len(batch):  # never let a short/long reply desync the alignment
             verdicts = (list(verdicts) + [("other", "neutral")] * len(batch))[: len(batch)]
         out.extend(verdicts)
     return out

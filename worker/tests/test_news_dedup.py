@@ -57,3 +57,14 @@ def test_representative_prefers_exchange_filing():
         mk("b:1", "Reliance", "a much longer official filing headline", source="BSE"),
     ]
     assert representative(cluster).source == "BSE"
+
+
+def test_representative_prefers_deterministic_tier_a_over_longer_headline():
+    # Two co-clustered BSE filings: a Tier-A order-win (short headline) and a non-Tier-A "Company
+    # Update" (longer headline). The deterministic member must win the rep slot so its tag survives.
+    a = RawNewsItem(source="BSE", source_uid="b1", company_name="Tata Motors", headline="order",
+                    event_date=D, category="Company Update", subcategory="Award of Order / Receipt of Order")
+    b = RawNewsItem(source="BSE", source_uid="b2", company_name="Tata Motors",
+                    headline="a much longer company update headline about the same matter",
+                    event_date=D, category="Company Update", subcategory="General Announcement")
+    assert representative([a, b]).source_uid == "b1"
