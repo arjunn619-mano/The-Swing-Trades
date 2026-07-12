@@ -76,32 +76,39 @@ def capture_news(
     clusters = cluster_near_duplicates(items)
     res.clusters = len(clusters)
 
-    # 3. classify + resolve + Stage-B, per cluster
+    # 3a. classify each cluster: deterministic Tier-A now; queue Tier-B/C for ONE batched LLM call
+    enrol_queue: list = []                    # (cluster, rep, tag) ready to resolve + enrol
+    pending: list = []                        # (cluster, rep, proposed_tag) awaiting the LLM
     for cluster in clusters:
         rep = representative(cluster)
         cls = classify_catalyst(rep.category, rep.subcategory)
-
         if cls.is_deterministic:
-            tag = cls.tag
             res.tier_a += 1
+            enrol_queue.append((cluster, rep, cls.tag))
+        elif llm_classify is None:
+            res.llm_deferred += 1             # no LLM yet — never guess a tag
         else:
-            if llm_classify is None:
-                res.llm_deferred += 1
-                continue  # no LLM yet — Tier B/C waits (never guess a tag)
-            event_type, sentiment = llm_classify([rep])[0]
-            tag = finalize_llm_catalyst(cls.tag, event_type, sentiment)
+            pending.append((cluster, rep, cls.tag))
+
+    # 3b. one batched LLM call for all sentiment-ambiguous items (respects the free-tier RPM budget)
+    if pending:
+        verdicts = llm_classify([rep for _cl, rep, _p in pending])
+        for (cluster, rep, proposed), verdict in zip(pending, verdicts):
+            event_type, sentiment = verdict
+            tag = finalize_llm_catalyst(proposed, event_type, sentiment)
             if tag is None:
-                res.dropped_non_positive += 1
+                res.dropped_non_positive += 1  # not positive -> drop
                 continue
             res.llm_classified += 1
+            enrol_queue.append((cluster, rep, tag))
 
+    # 3c. resolve (reject-if-ambiguous) + Stage-B, attaching every source in the cluster to one event
+    for cluster, rep, tag in enrol_queue:
         r = resolver.resolve(isin=rep.isin, bse_scrip=rep.bse_scrip_code, name=rep.company_name)
         if not r.ok:
             res.rejected += 1
             continue
         res.resolved += 1
-
-        # process every source in the cluster so all source_uids attach to one event
         for member in cluster:
             c = ResolvedCandidate(
                 isin=r.instrument.isin, instrument=r.instrument, catalyst_tag=tag,
