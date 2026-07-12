@@ -20,11 +20,18 @@ _REQUIRED_COLS = ("EXCH_ID", "SEGMENT", "ISIN", "INSTRUMENT", "SYMBOL_NAME")
 _EQUITY_EXCHANGES = {"NSE", "BSE"}
 
 # The Dhan "E" segment also contains Sovereign Gold Bonds (NSE SG), government securities
-# and bonds (GS/GB/TB/G), fixed income (BSE F), SME (SM/NS) and ETFs (MF). Restricting to
-# these series keeps the universe to liquid common equities (~3k instead of ~18k ISINs).
+# and bonds (GS/GB/TB/G), fixed income / preference / commercial paper (BSE F), SME
+# (NSE SM/ST, BSE M/MT/MS) and ETFs (MF/INF ISINs). We keep liquid common equity only.
+#
+# BSE groups admitted: A/B (main liquid groups) PLUS X/XT/T. BSE Group X denotes a share listed
+# EXCLUSIVELY on BSE (an exchange-scope label, NOT an illiquidity one — e.g. Andhra Petrochemicals
+# trades ~Rs.1 Cr/day yet sits in X); XT/T are BSE-exclusive trade-to-trade names. Admitting
+# X/XT/T stops the universe from silently dropping tradeable BSE-only stocks. A per-name turnover
+# gate at scan time (Step 0b) keeps genuinely-dead shells from being tracked. Still excluded here:
+# BSE F (debt/pref/CP), Z/ZP (suspended / penalty / non-compliant), and SME (M/MT/MS, SM/ST).
 DEFAULT_ALLOWED_SERIES = {
-    "NSE": {"EQ", "BE"},  # main board + trade-for-trade equities
-    "BSE": {"A", "B"},    # main equity groups
+    "NSE": {"EQ", "BE"},                # main board + trade-for-trade equities
+    "BSE": {"A", "B", "X", "XT", "T"},  # liquid groups + BSE-exclusive / trade-to-trade
 }
 
 

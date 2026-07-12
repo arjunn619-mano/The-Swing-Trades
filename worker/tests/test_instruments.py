@@ -13,13 +13,35 @@ CSV = (
     "1199,NSE,E,INE777Z01011,EQUITY,SGBTEST,SGB TEST,SGB Test,SG,1,N\n"      # SGB -> excluded (series)
     "540999,BSE,E,INE888Z01022,EQUITY,BONDTEST,BOND TEST,Bond Test,F,1,N\n"  # BSE F (debt) -> excluded (series)
     "538591,BSE,E,INF204KA1RY0,EQUITY,FUNDX,FUND X,Fund X,A,1,N\n"           # INF = mutual fund -> excluded (ISIN)
+    "500012,BSE,E,INE714B01016,EQUITY,ANDHRAPET,ANDHRA PETROCHEMICALS,Andhra Petrochemicals,X,1,N\n"  # BSE X -> INCLUDED (widened)
+    "500051,BSE,E,INE223B01018,EQUITY,BHAGGAS,BHAGAWATI GAS,Bhagawati Gas,XT,1,N\n"                   # BSE XT -> INCLUDED
+    "500357,BSE,E,INE335C01020,EQUITY,RAMAPPR,RAMA PAPER MILLS,Rama Paper Mills,T,1,N\n"              # BSE T -> INCLUDED
+    "500999,BSE,E,INE444D01022,EQUITY,SUSPTEST,SUSPENDED TEST,Suspended Test,Z,1,N\n"                 # BSE Z -> excluded (suspended)
+    "501000,BSE,E,INE555E01024,EQUITY,SMETEST,SME TEST,Sme Test,M,1,N\n"                              # BSE M (SME) -> excluded
 )
 
 
 def test_equity_filter_excludes_derivatives():
     rows = I.equity_rows(I.parse_instrument_csv(CSV))
     assert all(r.segment == "E" for r in rows)
-    assert len(rows) == 5  # 2 RELIANCE listings + HDFC + TCS(NSE) + BSEONLY; OPTIDX excluded
+    # 2 RELIANCE + HDFC + TCS(NSE) + BSEONLY (=5 original) + ANDHRAPET(X) + BHAGGAS(XT) + RAMAPPR(T) (=3 widened).
+    # OPTIDX (derivative), SGB, BSE-F, INF-fund, BSE-Z (suspended) and BSE-M (SME) all excluded.
+    assert len(rows) == 8
+
+
+def test_includes_bse_extended_groups_x_xt_t():
+    """Widening (Step 0a): BSE X/XT/T tradeable BSE-exclusive names are now admitted."""
+    isins = {u.isin for u in I.resolve_universe(I.equity_rows(I.parse_instrument_csv(CSV)))}
+    assert "INE714B01016" in isins  # ANDHRAPET — BSE group X (exclusively-listed, liquid)
+    assert "INE223B01018" in isins  # BSE group XT (trade-to-trade)
+    assert "INE335C01020" in isins  # BSE group T (trade-to-trade)
+
+
+def test_excludes_bse_suspended_and_sme():
+    """BSE Z (suspended/penalty) and M (SME) stay excluded even after widening."""
+    isins = {u.isin for u in I.resolve_universe(I.equity_rows(I.parse_instrument_csv(CSV)))}
+    assert "INE444D01022" not in isins  # BSE Z — suspended / non-compliant
+    assert "INE555E01024" not in isins  # BSE M — SME (out of scope)
 
 
 def test_resolve_prefers_nse_keeps_bse_scrip():

@@ -48,6 +48,23 @@ class Settings:
         return self.dhan_client_id, self.dhan_pin, self.dhan_totp_secret  # type: ignore[return-value]
 
 
+# Step 0b: the widened-group (BSE X/XT/T) turnover floor, in rupees of daily traded value
+# (close * volume). Env-overridable so it can be calibrated without a code change. Default
+# Rs.25 lakh/day keeps tradeable BSE-only names (e.g. Andhra Petrochemicals ~Rs.1 Cr/day) while
+# culling genuinely-dead shells. Set SCAN_TURNOVER_FLOOR=0 to disable the gate (observe mode).
+DEFAULT_SCAN_TURNOVER_FLOOR = 2_500_000.0
+
+
+def load_turnover_floor() -> float:
+    raw = (os.getenv("SCAN_TURNOVER_FLOOR") or "").strip()
+    if not raw:
+        return DEFAULT_SCAN_TURNOVER_FLOOR
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return DEFAULT_SCAN_TURNOVER_FLOOR
+
+
 def load_settings() -> Settings:
     return Settings(
         database_url=os.getenv("DATABASE_URL"),

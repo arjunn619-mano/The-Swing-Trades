@@ -23,12 +23,14 @@ class InstrumentRef:
     isin: str
     security_id: str
     exchange_segment: str
+    series: Optional[str] = None  # BSE group / NSE series — drives the Step 0b turnover gate
 
 
 class ScanStore:
     """Interface. See FakeStore for the canonical in-memory semantics."""
 
     def get_active_instruments(self) -> list[InstrumentRef]: raise NotImplementedError
+    def get_tracked_instrument_ids(self) -> set[int]: raise NotImplementedError
     def upsert_price_bars(self, instrument_id: int, bars: Sequence[PriceBar]) -> int: raise NotImplementedError
     def get_trailing_prices(self, instrument_id: int, up_to: _dt.date) -> list[PriceBar]: raise NotImplementedError
     def get_strategy_id(self, key: str) -> int: raise NotImplementedError
@@ -70,6 +72,9 @@ class FakeStore(ScanStore):
     # --- instruments / prices ---
     def get_active_instruments(self) -> list[InstrumentRef]:
         return list(self.instruments)
+
+    def get_tracked_instrument_ids(self) -> set[int]:
+        return {iid for (iid, _sid), e in self.tracker.items() if e["status"] == "active"}
 
     def upsert_price_bars(self, instrument_id: int, bars: Sequence[PriceBar]) -> int:
         for b in bars:
@@ -231,10 +236,15 @@ class PostgresStore(ScanStore):
         with self._cur() as cur:
             cur.execute(
                 "SELECT id, isin, security_id, "
-                "CASE WHEN exchange_pref='BSE' THEN 'BSE_EQ' ELSE 'NSE_EQ' END "
+                "CASE WHEN exchange_pref='BSE' THEN 'BSE_EQ' ELSE 'NSE_EQ' END, series "
                 "FROM instruments WHERE active = TRUE"
             )
             return [InstrumentRef(*row) for row in cur.fetchall()]
+
+    def get_tracked_instrument_ids(self) -> set[int]:
+        with self._cur() as cur:
+            cur.execute("SELECT DISTINCT instrument_id FROM tracker_entries WHERE status = 'active'")
+            return {row[0] for row in cur.fetchall()}
 
     def upsert_price_bars(self, instrument_id: int, bars: Sequence[PriceBar]) -> int:
         from ..db.writes import upsert_price_history

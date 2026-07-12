@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from swing_trades.config import load_settings, load_strategy_configs  # noqa: E402
+from swing_trades.config import load_settings, load_strategy_configs, load_turnover_floor  # noqa: E402
 from swing_trades.config.strategies_loader import load_tracking_horizon_days  # noqa: E402
 from swing_trades.data_layer.dhan_auth import generate_access_token  # noqa: E402
 from swing_trades.data_layer.dhan_client import DhanDataClient  # noqa: E402
@@ -46,6 +46,7 @@ def main() -> None:
             dhan_client=client,
             strategy_configs=load_strategy_configs(),
             horizon_days=load_tracking_horizon_days(),
+            turnover_floor=load_turnover_floor(),
             artifact_dir="artifacts",
             alert=lambda msg: bool(alert(msg)),
             logger=logger,

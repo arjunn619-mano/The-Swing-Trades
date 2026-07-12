@@ -32,6 +32,13 @@ class ScanError(RuntimeError):
     pass
 
 
+# Step 0b turnover gate: only the newly-widened BSE groups (Step 0a) are subject to the
+# per-name turnover floor. Curated liquid groups (NSE EQ/BE, BSE A/B), any unknown/blank
+# series, and any already-tracked instrument are NEVER gated — the floor can only ever cull a
+# newly-widened, never-tracked, sub-floor name, so it can't drop an existing or tracked stock.
+_GATED_SERIES = frozenset({"X", "XT", "T"})
+
+
 @dataclass
 class ScanSummary:
     trade_date: str
@@ -39,6 +46,7 @@ class ScanSummary:
     error: Optional[str] = None
     instruments: int = 0
     features: int = 0
+    gated_illiquid: int = 0  # widened-group names skipped by the turnover floor (Step 0b)
     per_strategy: dict = field(default_factory=dict)
     skipped_strategies: list = field(default_factory=list)
 
@@ -85,6 +93,7 @@ def run_scan(
     ema_mid: int = 15,
     ema_long: int = 200,
     quote_interval: float = 1.1,   # Dhan Quote API limit is 1 req/sec — space the batches
+    turnover_floor: float = 0.0,   # Step 0b: min close*volume for a widened BSE X/XT/T name; 0 disables
     sleep: Callable[[float], None] = time.sleep,
     artifact_dir: Optional[str] = None,
     alert: Optional[Callable[[str], bool]] = None,
@@ -121,16 +130,33 @@ def run_scan(
             raise ScanError("empty quote response — refusing to write (freshness gate)")
 
         # 3. Store today's bars (idempotent) and remember opens/closes.
+        #    Turnover gate (Step 0b): keep genuinely-dead widened-group shells (BSE X/XT/T) out
+        #    of the stored/tracked set to bound storage. It NEVER touches curated groups
+        #    (NSE EQ/BE, BSE A/B) or any already-tracked instrument, so it can't drop an existing
+        #    name or corrupt an in-flight 100-day tracker window. floor <= 0 disables it.
         by_secid = {str(r.security_id): r for r in instruments}
+        tracked_ids = store.get_tracked_instrument_ids() if turnover_floor > 0 else set()
         opens_by_instrument: dict[int, float] = {}
         close_by_instrument: dict[int, float] = {}
+        gated_illiquid = 0
         for secid, bar in quotes.items():
             ref = by_secid.get(secid)
             if ref is None:
                 continue
+            if (
+                turnover_floor > 0
+                and (ref.series or "").upper() in _GATED_SERIES
+                and ref.id not in tracked_ids
+                and (bar.close * bar.volume) < turnover_floor
+            ):
+                gated_illiquid += 1
+                continue
             store.upsert_price_bars(ref.id, [bar])
             opens_by_instrument[ref.id] = bar.open
             close_by_instrument[ref.id] = bar.close
+        summary.gated_illiquid = gated_illiquid
+        if gated_illiquid:
+            _log(f"turnover gate: skipped {gated_illiquid} widened-group names below floor {turnover_floor:,.0f}")
 
         # 4. Fill entry_next_open for entries first seen on the previous trading day (M3).
         prev = timeutils.previous_trading_day(trade_date)
