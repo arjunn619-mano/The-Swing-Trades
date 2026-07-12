@@ -78,6 +78,38 @@ def test_rerun_scan_does_not_double_enrol():
     assert len([k for k in s.tracker if k[1] == 99]) == 1
 
 
+def test_illiquid_news_pick_priced_despite_turnover_floor():
+    """Option B: a news hit on an illiquid BSE-X name must still be priced + enrolled — the turnover
+    gate protects instruments with a PENDING news event, else it would starve them forever."""
+    s = FakeStore()
+    s.register_strategy("news_positive", 99)
+    resolver = InstrumentResolver([
+        UniverseInstrument(isin="INE714B01016", security_id="500012", exchange_pref="BSE", exchange_segment="BSE_EQ",
+                           nse_symbol="ANDHRAPET", bse_scrip_code="500012", symbol_name="Andhra Petrochemicals",
+                           series="X", lot_size=1, asm_gsm_flag="N"),
+    ])
+    bse = json.dumps({"Table": [
+        {"SCRIP_CD": 500012, "SLONGNAME": "Andhra Petrochemicals Ltd", "CATEGORYNAME": "Company Update",
+         "SUBCATNAME": "Award of Order / Receipt of Order", "HEADLINE": "Andhra Petro bags order",
+         "NEWS_DT": "2026-07-13T15:00:00", "NEWSID": "x1"}], "Table1": [{"ROWCNT": 1}]})
+
+    def get(url, headers=None, params=None):
+        return FetchResult(200, "application/json", bse)
+
+    capture_news(TD, adapters=[BseAdapter()], http_get=get, resolver=resolver, store=s, log_only_count=True)
+    andhra = next(r for r in s.instruments if r.isin == "INE714B01016")
+
+    # low-turnover quote: 50 * 1000 = 50,000 << the 2.5M floor, and series X (a gated group)
+    client = FakeClient({"500012": {"ohlc": {"open": 49, "high": 51, "low": 48, "close": 50}, "volume": 1000}})
+    summary = run_scan(TD, store=s, dhan_client=client, strategy_configs=[], horizon_days=100,
+                       enable_news=True, turnover_floor=2_500_000)
+
+    assert (andhra.id, TD) in s.prices          # bar stored despite being sub-floor (pending-news protected)
+    assert summary.news["created"] == 1
+    assert (andhra.id, 99) in s.tracker
+    assert s.tracker[(andhra.id, 99)]["catalyst_tag"] == "ORDER_WIN"
+
+
 def test_scan_without_enable_news_is_untouched():
     s = FakeStore()
     s.register_strategy("news_positive", 99)

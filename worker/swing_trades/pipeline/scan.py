@@ -189,7 +189,12 @@ def run_scan(
         #    (NSE EQ/BE, BSE A/B) or any already-tracked instrument, so it can't drop an existing
         #    name or corrupt an in-flight 100-day tracker window. floor <= 0 disables it.
         by_secid = {str(r.security_id): r for r in instruments}
+        # Protect from the turnover gate: actively-tracked names AND (under option B) any name with a
+        # PENDING news_event — otherwise an illiquid news pick would be gated forever and never priced
+        # to enrol (it isn't "tracked" until it's enrolled, and it can't enrol without a price).
         tracked_ids = store.get_tracked_instrument_ids() if turnover_floor > 0 else set()
+        if turnover_floor > 0 and enable_news:
+            tracked_ids = tracked_ids | store.get_pending_news_instrument_ids()
         opens_by_instrument: dict[int, float] = {}
         close_by_instrument: dict[int, float] = {}
         gated_illiquid = 0

@@ -45,6 +45,7 @@ class ScanStore:
 
     def get_active_instruments(self) -> list[InstrumentRef]: raise NotImplementedError
     def get_tracked_instrument_ids(self) -> set[int]: raise NotImplementedError
+    def get_pending_news_instrument_ids(self) -> set[int]: raise NotImplementedError
     def upsert_price_bars(self, instrument_id: int, bars: Sequence[PriceBar]) -> int: raise NotImplementedError
     def get_trailing_prices(self, instrument_id: int, up_to: _dt.date) -> list[PriceBar]: raise NotImplementedError
     def get_strategy_id(self, key: str) -> int: raise NotImplementedError
@@ -101,6 +102,10 @@ class FakeStore(ScanStore):
 
     def get_tracked_instrument_ids(self) -> set[int]:
         return {iid for (iid, _sid), e in self.tracker.items() if e["status"] == "active"}
+
+    def get_pending_news_instrument_ids(self) -> set[int]:
+        return {e["instrument_id"] for e in self.news_events.values()
+                if not e["enrolled"] and e["instrument_id"] is not None}
 
     def upsert_price_bars(self, instrument_id: int, bars: Sequence[PriceBar]) -> int:
         for b in bars:
@@ -325,6 +330,12 @@ class PostgresStore(ScanStore):
     def get_tracked_instrument_ids(self) -> set[int]:
         with self._cur() as cur:
             cur.execute("SELECT DISTINCT instrument_id FROM tracker_entries WHERE status = 'active'")
+            return {row[0] for row in cur.fetchall()}
+
+    def get_pending_news_instrument_ids(self) -> set[int]:
+        with self._cur() as cur:
+            cur.execute("SELECT DISTINCT instrument_id FROM news_events "
+                        "WHERE enrolled = FALSE AND instrument_id IS NOT NULL")
             return {row[0] for row in cur.fetchall()}
 
     def upsert_price_bars(self, instrument_id: int, bars: Sequence[PriceBar]) -> int:
