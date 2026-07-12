@@ -8,6 +8,7 @@ Oracle VM)."""
 from __future__ import annotations
 
 import datetime as _dt
+import re
 from typing import Optional
 from urllib.parse import quote_plus
 
@@ -49,22 +50,31 @@ def _entry_date(entry, trade_date: _dt.date) -> _dt.date:
     return trade_date
 
 
+def _clean(text: str) -> str:
+    """Strip HTML tags + collapse whitespace (RSS descriptions often carry markup)."""
+    text = re.sub(r"<[^>]+>", " ", text or "")
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def parse_rss(body: str, source: str, trade_date: _dt.date) -> list[RawNewsItem]:
     import feedparser
 
     feed = feedparser.parse(body or "")
     items: list[RawNewsItem] = []
     for e in feed.entries:
-        title = (getattr(e, "title", "") or "").strip()
+        title = _clean(getattr(e, "title", ""))
         if not title:
             continue
+        # Fold in the feed's own summary/description — free extra context (no article fetch), bounded.
+        summary = _clean(getattr(e, "summary", "") or getattr(e, "description", ""))
+        headline = title if (not summary or summary.lower() == title.lower()) else f"{title} — {summary[:220]}"
         link = (getattr(e, "link", "") or "").strip()
         items.append(
             RawNewsItem(
                 source=source,
                 source_uid="rss:" + sha1(source, link or title),
                 company_name=None,  # no clean company field — the LLM extracts it
-                headline=title,
+                headline=headline,
                 event_date=_entry_date(e, trade_date),
                 category=None,
                 subcategory=None,
@@ -108,8 +118,16 @@ class RssAdapter:
                 if not sample:
                     sample = (fetch.body or "")[:300]
                 continue
+            # fetch OK (2xx) — parsing must also never raise into the scan (mirrors BseAdapter). A
+            # parse/import failure (e.g. feedparser missing) degrades THIS feed to a skip; if every
+            # feed fails, feeds_ok stays 0 -> CRITICAL + alert, and the BSE backbone is untouched.
+            try:
+                parsed = parse_rss(fetch.body, label, trade_date)
+            except Exception as e:
+                last_error = f"parse: {e}"
+                continue
             feeds_ok += 1
-            for it in parse_rss(fetch.body, label, trade_date):
+            for it in parsed:
                 if it.source_uid not in seen:
                     seen.add(it.source_uid)
                     all_items.append(it)

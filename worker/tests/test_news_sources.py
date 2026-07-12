@@ -141,6 +141,33 @@ def test_rss_collect_is_best_effort_across_feeds():
     assert h.status == HealthStatus.OK and len(items) == 2  # one feed down, the other still delivers
 
 
+def test_rss_folds_in_the_feed_summary():
+    xml = ('<?xml version="1.0"?><rss version="2.0"><channel><item>'
+           "<title>Tata Motors update</title>"
+           "<description>&lt;p&gt;The board approved a Rs 5000 cr order win from Indian Railways&lt;/p&gt;</description>"
+           "<link>http://x/1</link><pubDate>Mon, 13 Jul 2026 10:00:00 GMT</pubDate></item></channel></rss>")
+    it = parse_rss(xml, "RSS_ET", TD)[0]
+    assert it.headline.startswith("Tata Motors update — ")   # title + cleaned (de-HTML'd) summary
+    assert "order win from Indian Railways" in it.headline
+
+
+def test_rss_collect_survives_parse_failure(monkeypatch):
+    # A parse/import failure (e.g. feedparser missing) must degrade the feed to a skip, never raise
+    # into the scan — so the already-fetched BSE backbone is never silently dropped.
+    from swing_trades.data_layer.news.sources import rss as rssmod
+
+    def boom(body, source, td):
+        raise ImportError("feedparser missing")
+
+    monkeypatch.setattr(rssmod, "parse_rss", boom)
+
+    def get(url, headers=None, params=None):
+        return FetchResult(200, "application/xml", RSS)
+
+    items, h = rssmod.RssAdapter(feeds=[("RSS_GNEWS", "u1")]).collect(TD, http_get=get, is_trading_day=True)
+    assert h.status == HealthStatus.CRITICAL and h.failed_check == "all_feeds_down" and items == []
+
+
 def test_collect_paginates_until_empty_page():
     p1 = json.dumps({"Table": [{"SCRIP_CD": 1, "SLONGNAME": "A Ltd", "CATEGORYNAME": "X",
                                  "HEADLINE": "h1", "NEWS_DT": "2026-07-13T10:00:00", "NEWSID": "a1"}],
