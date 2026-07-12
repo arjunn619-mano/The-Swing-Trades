@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { dateStr } from "@/lib/format";
 
 const LINKS = [
@@ -89,6 +90,45 @@ function FreshnessChip({ date, status }: { date: string | null; status: string |
   );
 }
 
+function RefreshButton() {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  async function refresh() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await fetch("/api/revalidate", { method: "POST" }); // bust the ISR cache, then re-render
+    } catch {
+      /* refresh is best-effort — a failed revalidate still falls back to router.refresh() */
+    }
+    router.refresh();
+    setTimeout(() => setBusy(false), 600); // brief spin so the tap always feels responsive
+  }
+  return (
+    <button
+      type="button"
+      onClick={refresh}
+      disabled={busy}
+      title="Refresh — pull the latest scanned data"
+      aria-label="Refresh data"
+      className="inline-flex shrink-0 items-center justify-center rounded-md border border-navy-700/60 bg-navy-900/60 p-1.5 text-slate-300 transition-colors hover:bg-navy-800 hover:text-white disabled:opacity-60"
+    >
+      <svg
+        className={`h-4 w-4 ${busy ? "animate-spin" : ""}`}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+        <path d="M21 3v6h-6" />
+      </svg>
+    </button>
+  );
+}
+
 export function Nav({
   lastScanDate,
   lastScanStatus,
@@ -124,6 +164,7 @@ export function Nav({
               })}
             </nav>
             <FreshnessChip date={lastScanDate} status={lastScanStatus} />
+            <RefreshButton />
           </div>
         </div>
       </header>
