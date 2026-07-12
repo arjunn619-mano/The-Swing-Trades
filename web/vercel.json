@@ -1,5 +1,6 @@
 {
   "crons": [
+    { "path": "/api/cron/capture", "schedule": "0 11 * * *" },
     { "path": "/api/cron/scan", "schedule": "30 11 * * *" }
   ]
 }
