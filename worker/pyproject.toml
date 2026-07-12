@@ -16,6 +16,7 @@ dependencies = [
     "requests>=2.31",
     "pyotp>=2.8",
     "pyarrow>=14",
+    "rapidfuzz>=3.0",   # deterministic name->ISIN fuzzy matching for the news resolver (reject-if-ambiguous)
 ]
 
 [project.optional-dependencies]
