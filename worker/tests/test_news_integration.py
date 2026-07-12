@@ -110,6 +110,17 @@ def test_illiquid_news_pick_priced_despite_turnover_floor():
     assert s.tracker[(andhra.id, 99)]["catalyst_tag"] == "ORDER_WIN"
 
 
+def test_news_failure_never_breaks_the_systematic_scan():
+    """Isolation guard: if news enrolment errors (here: news_positive not registered), the scan still
+    succeeds for the systematic strategies — the news failure is recorded, not raised."""
+    s = FakeStore()  # news_positive deliberately NOT registered -> get_strategy_id raises inside enrol
+    capture_news(TD, adapters=[BseAdapter()], http_get=fake_get, resolver=R, store=s, log_only_count=True)
+    client = FakeClient({"2885": {"ohlc": {"open": 3000, "high": 3050, "low": 2990, "close": 3025}, "volume": 1_000_000}})
+    summary = run_scan(TD, store=s, dhan_client=client, strategy_configs=[], horizon_days=100, enable_news=True)
+    assert summary.status == "success"   # systematic scan unaffected
+    assert "error" in summary.news       # news degraded gracefully and recorded it
+
+
 def test_scan_without_enable_news_is_untouched():
     s = FakeStore()
     s.register_strategy("news_positive", 99)
