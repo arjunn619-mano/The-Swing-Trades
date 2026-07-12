@@ -17,6 +17,7 @@ dependencies = [
     "pyotp>=2.8",
     "pyarrow>=14",
     "rapidfuzz>=3.0",   # deterministic name->ISIN fuzzy matching for the news resolver (reject-if-ambiguous)
+    "feedparser>=6.0",  # robust RSS/Atom parsing for the Phase-2 narrative news sources
 ]
 
 [project.optional-dependencies]

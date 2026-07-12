@@ -99,9 +99,9 @@ def classify_batches(
         except Exception:
             verdicts = None
         if verdicts is None:
-            verdicts = [("other", "neutral")] * len(batch)  # degrade -> neutral (dropped, not enrolled)
+            verdicts = [("", "other", "neutral")] * len(batch)  # degrade -> neutral (dropped, not enrolled)
         elif len(verdicts) != len(batch):  # never let a short/long reply desync the alignment
-            verdicts = (list(verdicts) + [("other", "neutral")] * len(batch))[: len(batch)]
+            verdicts = (list(verdicts) + [("", "other", "neutral")] * len(batch))[: len(batch)]
         out.extend(verdicts)
     return out
 
@@ -109,24 +109,29 @@ def classify_batches(
 # ---- prompt + response parsing (shared by both providers) ----
 
 _INSTRUCTION = (
-    "You classify Indian-listed-company corporate news. For EACH item return its event_type (one of: "
-    + ", ".join(EVENT_TYPES)
-    + ") and sentiment (positive, neutral, negative) for the SHARE PRICE. Positive = a genuine growth/"
-    "earnings/order/expansion catalyst; a weak or declining result is negative; routine/procedural is "
-    "neutral. Return ONLY a JSON array of objects {\"id\": <int>, \"event_type\": <string>, "
-    "\"sentiment\": <string>}. NEVER output a stock ticker, symbol, ISIN or exchange code."
+    "You classify Indian-listed-company corporate news. For EACH item return: company_name (the ONE "
+    "listed company the news is primarily about, as a plain name, or \"\" if none/unclear), event_type "
+    "(one of: " + ", ".join(EVENT_TYPES) + "), and sentiment (positive, neutral, negative) for the SHARE "
+    "PRICE. Positive = a genuine growth/earnings/order/expansion catalyst; a weak or declining result is "
+    "negative; routine/procedural is neutral. Return ONLY a JSON array of objects {\"id\": <int>, "
+    "\"company_name\": <string>, \"event_type\": <string>, \"sentiment\": <string>}. NEVER output a stock "
+    "ticker, symbol, ISIN or exchange code — only the company's plain name."
 )
 
 
 def build_prompt(batch) -> str:
-    payload = [{"id": i, "text": f"{it.company_name} — {it.headline}"} for i, it in enumerate(batch)]
+    payload = [
+        {"id": i, "text": (f"{it.company_name} — {it.headline}" if it.company_name else it.headline)}
+        for i, it in enumerate(batch)
+    ]
     return _INSTRUCTION + "\n\nITEMS:\n" + json.dumps(payload, ensure_ascii=False)
 
 
 def parse_verdicts(text: str, n: int) -> list:
-    """Parse the model's JSON array back into a list aligned to the batch by id. Missing/garbled
-    entries default to ('other','neutral') so nothing desyncs or is wrongly enrolled."""
-    out = [("other", "neutral")] * n
+    """Parse the model's JSON array into a list aligned to the batch by id, each a
+    (company_name, event_type, sentiment) tuple. Missing/garbled entries default to
+    ('', 'other', 'neutral') so nothing desyncs or is wrongly enrolled."""
+    out = [("", "other", "neutral")] * n
     try:
         arr = json.loads(text)
     except (ValueError, TypeError):
@@ -141,9 +146,10 @@ def parse_verdicts(text: str, n: int) -> list:
         except (TypeError, ValueError):
             continue
         if 0 <= i < n:
+            company = str(obj.get("company_name", "") or "").strip()
             ev = str(obj.get("event_type", "other")).strip().lower()
             se = str(obj.get("sentiment", "neutral")).strip().lower()
-            out[i] = (ev if ev in EVENT_TYPES else "other", se if se in SENTIMENTS else "neutral")
+            out[i] = (company, ev if ev in EVENT_TYPES else "other", se if se in SENTIMENTS else "neutral")
     return out
 
 

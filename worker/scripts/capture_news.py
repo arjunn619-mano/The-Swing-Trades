@@ -23,6 +23,7 @@ from swing_trades.data_layer.news.http import requests_get  # noqa: E402
 from swing_trades.data_layer.news.resolver import build_resolver_from_master  # noqa: E402
 from swing_trades.data_layer.news.sources.base import HealthStatus  # noqa: E402
 from swing_trades.data_layer.news.sources.bse import BseAdapter  # noqa: E402
+from swing_trades.data_layer.news.sources.rss import RssAdapter  # noqa: E402
 from swing_trades.db.connection import connection  # noqa: E402
 from swing_trades.pipeline.store import PostgresStore  # noqa: E402
 from swing_trades.utils import timeutils  # noqa: E402
@@ -64,8 +65,12 @@ def main() -> None:
     master = requests.get(INSTRUMENT_CSV_URL, timeout=180).text
     resolver = build_resolver_from_master(master)
 
-    adapters = [BseAdapter()]  # NSE + narrative RSS added as best-effort sources (Oracle-VM IP)
     llm_classify = _build_llm_classify(params)
+    # BSE (deterministic backbone) always; the RSS narrative layer only when the LLM is available
+    # (RSS items are all Tier-C — they need the LLM to extract the company + judge sentiment).
+    adapters = [BseAdapter()]
+    if llm_classify is not None:
+        adapters.append(RssAdapter())
 
     with connection(settings.require_database_url()) as conn:
         result = capture_news(

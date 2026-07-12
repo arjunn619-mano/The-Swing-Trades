@@ -9,6 +9,7 @@ from swing_trades.data_layer.news.capture import capture_news
 from swing_trades.data_layer.news.resolver import InstrumentResolver
 from swing_trades.data_layer.news.sources.base import FetchResult
 from swing_trades.data_layer.news.sources.bse import BseAdapter
+from swing_trades.data_layer.news.sources.rss import RssAdapter
 from swing_trades.pipeline.store import FakeStore
 
 TD = dt.date(2026, 7, 13)
@@ -58,7 +59,7 @@ def test_llm_closes_result_as_results_positive():
     s = FakeStore()
 
     def llm(reps):
-        return [("results", "positive") for _ in reps]
+        return [("", "results", "positive") for _ in reps]
 
     res = capture_news(TD, adapters=[BseAdapter()], http_get=fake_get(), resolver=R, store=s,
                        is_trading_day=True, llm_classify=llm, log_only_count=True)
@@ -71,12 +72,44 @@ def test_llm_drops_negative_result():
     s = FakeStore()
 
     def llm(reps):
-        return [("results", "negative") for _ in reps]  # bad numbers -> not enrolled
+        return [("", "results", "negative") for _ in reps]  # bad numbers -> not enrolled
 
     res = capture_news(TD, adapters=[BseAdapter()], http_get=fake_get(), resolver=R, store=s,
                        is_trading_day=True, llm_classify=llm, log_only_count=True)
     assert res.dropped_non_positive == 1
     assert {e["catalyst_tag"] for e in s.news_events.values()} == {"ORDER_WIN"}
+
+
+RSS_XML = (
+    '<?xml version="1.0"?><rss version="2.0"><channel>'
+    "<item><title>Reliance Industries bags Rs 10000 cr highway order from NHAI</title>"
+    "<link>https://news.google.com/rss/articles/abc123</link>"
+    "<pubDate>Mon, 13 Jul 2026 10:00:00 GMT</pubDate></item>"
+    "</channel></rss>"
+)
+
+
+def test_rss_headline_resolved_via_llm_extracted_company():
+    """An RSS headline (no clean company field) is resolved via the company name the LLM extracts."""
+    s = FakeStore()
+
+    def http_get(url, headers=None, params=None):
+        if "bseindia" in url:  # BSE returns nothing this run -> only the RSS item flows
+            return FetchResult(200, "application/json", json.dumps({"Table": [], "Table1": [{"ROWCNT": 0}]}))
+        return FetchResult(200, "application/xml", RSS_XML)
+
+    def llm(reps):
+        # the model extracts the company from the free-text headline + judges it positive
+        return [("Reliance Industries", "order_win", "positive") for _ in reps]
+
+    res = capture_news(
+        TD,
+        adapters=[BseAdapter(), RssAdapter(feeds=[("RSS_GNEWS", "https://news.google.com/rss/search?q=x")])],
+        http_get=http_get, resolver=R, store=s, is_trading_day=True, llm_classify=llm, log_only_count=True,
+    )
+    assert res.llm_classified == 1 and res.resolved == 1
+    ev = next(iter(s.news_events.values()))
+    assert ev["catalyst_tag"] == "ORDER_WIN" and ev["isin"] == "INE002A01018"  # resolved to Reliance
 
 
 def test_capture_is_idempotent_across_reruns():

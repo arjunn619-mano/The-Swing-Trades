@@ -55,7 +55,11 @@ def cluster_near_duplicates(
     items = dedup_by_source_uid(items)
     groups: dict[tuple[str, object], list[RawNewsItem]] = defaultdict(list)
     for it in items:
-        groups[(normalize_name(it.company_name), it.event_date)].append(it)
+        norm = normalize_name(it.company_name) if it.company_name else ""
+        # Items with no company name (RSS headlines) can't be grouped by company — give each its own
+        # singleton group so they never wrongly cluster together; Stage-B dedups them by resolved ISIN.
+        key = (norm, it.event_date) if norm else ("\x00" + it.source_uid, it.event_date)
+        groups[key].append(it)
 
     clusters: list[list[RawNewsItem]] = []
     for group in groups.values():

@@ -76,40 +76,44 @@ def capture_news(
     clusters = cluster_near_duplicates(items)
     res.clusters = len(clusters)
 
-    # 3a. classify each cluster: deterministic Tier-A now; queue Tier-B/C for ONE batched LLM call
-    enrol_queue: list = []                    # (cluster, rep, tag) ready to resolve + enrol
+    # 3a. classify each cluster: deterministic Tier-A now; queue Tier-B/C for ONE batched LLM call.
+    #     enrol_queue entries are (cluster, rep, tag, resolve_name) — the name to resolve by.
+    enrol_queue: list = []
     pending: list = []                        # (cluster, rep, proposed_tag) awaiting the LLM
     for cluster in clusters:
         rep = representative(cluster)
         cls = classify_catalyst(rep.category, rep.subcategory)
         if cls.is_deterministic:
             res.tier_a += 1
-            enrol_queue.append((cluster, rep, cls.tag))
+            enrol_queue.append((cluster, rep, cls.tag, rep.company_name))
         elif llm_classify is None:
             res.llm_deferred += 1             # no LLM yet — never guess a tag
         else:
             pending.append((cluster, rep, cls.tag))
 
     # 3b. one batched LLM call for all sentiment-ambiguous items (respects the free-tier RPM budget).
-    #     Defense in depth: an LLM failure degrades to neutral (dropped) and must NEVER abort the
-    #     deterministic Tier-A enrolments that run in 3c below.
+    #     The model also extracts the company name, used to resolve RSS headlines that carry no clean
+    #     company field. Defense in depth: an LLM failure degrades to neutral (dropped) and must NEVER
+    #     abort the deterministic Tier-A enrolments that run in 3c below.
     if pending:
         try:
             verdicts = llm_classify([rep for _cl, rep, _p in pending])
         except Exception:
-            verdicts = [("other", "neutral")] * len(pending)
+            verdicts = [("", "other", "neutral")] * len(pending)
         for (cluster, rep, proposed), verdict in zip(pending, verdicts):
-            event_type, sentiment = verdict
+            company, event_type, sentiment = verdict
             tag = finalize_llm_catalyst(proposed, event_type, sentiment)
             if tag is None:
                 res.dropped_non_positive += 1  # not positive -> drop
                 continue
             res.llm_classified += 1
-            enrol_queue.append((cluster, rep, tag))
+            # Exchange filings carry their own authoritative name; RSS headlines don't -> use the
+            # LLM-extracted company name for those.
+            enrol_queue.append((cluster, rep, tag, rep.company_name or company))
 
     # 3c. resolve (reject-if-ambiguous) + Stage-B, attaching every source in the cluster to one event
-    for cluster, rep, tag in enrol_queue:
-        r = resolver.resolve(isin=rep.isin, bse_scrip=rep.bse_scrip_code, name=rep.company_name)
+    for cluster, rep, tag, resolve_name in enrol_queue:
+        r = resolver.resolve(isin=rep.isin, bse_scrip=rep.bse_scrip_code, name=resolve_name)
         if not r.ok:
             res.rejected += 1
             continue

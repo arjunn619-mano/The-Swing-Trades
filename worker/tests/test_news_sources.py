@@ -5,6 +5,7 @@ import json
 
 from swing_trades.data_layer.news.sources.base import FetchResult, HealthStatus
 from swing_trades.data_layer.news.sources.bse import BseAdapter, parse_bse
+from swing_trades.data_layer.news.sources.rss import RssAdapter, parse_rss
 
 TD = dt.date(2026, 7, 13)  # a Monday
 
@@ -97,6 +98,47 @@ def test_collect_transport_error_critical_never_raises():
         raise ConnectionError("blocked by firewall")
     items, h = BseAdapter().collect(TD, http_get=boom, is_trading_day=True)
     assert h.status == HealthStatus.CRITICAL and h.failed_check == "http" and items == []
+
+
+RSS = (
+    '<?xml version="1.0"?><rss version="2.0"><channel>'
+    "<item><title>Tata Motors bags large order</title><link>http://x/1</link>"
+    "<pubDate>Mon, 13 Jul 2026 10:00:00 GMT</pubDate></item>"
+    "<item><title>Infosys wins new contract</title><link>http://x/2</link>"
+    "<pubDate>Mon, 13 Jul 2026 09:00:00 GMT</pubDate></item>"
+    "</channel></rss>"
+)
+
+
+def test_parse_rss_maps_entries():
+    items = parse_rss(RSS, "RSS_GNEWS", TD)
+    assert len(items) == 2
+    it = items[0]
+    assert it.source == "RSS_GNEWS" and it.company_name is None  # no clean company -> LLM extracts it
+    assert it.headline == "Tata Motors bags large order" and it.event_date == dt.date(2026, 7, 13)
+    assert it.source_uid.startswith("rss:")
+
+
+def test_rss_collect_ok():
+    def get(url, headers=None, params=None):
+        return FetchResult(200, "application/xml", RSS)
+    items, h = RssAdapter(feeds=[("RSS_GNEWS", "u1")]).collect(TD, http_get=get, is_trading_day=True, soft_min=1)
+    assert h.status == HealthStatus.OK and len(items) == 2
+
+
+def test_rss_collect_all_feeds_down_is_critical():
+    def get(url, headers=None, params=None):
+        return FetchResult(403, "text/html", "blocked")
+    items, h = RssAdapter(feeds=[("RSS_GNEWS", "u1")]).collect(TD, http_get=get, is_trading_day=True)
+    assert h.status == HealthStatus.CRITICAL and h.failed_check == "all_feeds_down" and items == []
+
+
+def test_rss_collect_is_best_effort_across_feeds():
+    def get(url, headers=None, params=None):
+        return FetchResult(200, "application/xml", RSS) if url == "good" else FetchResult(500, "", "")
+    items, h = RssAdapter(feeds=[("RSS_ET", "bad"), ("RSS_GNEWS", "good")]).collect(
+        TD, http_get=get, is_trading_day=True, soft_min=1)
+    assert h.status == HealthStatus.OK and len(items) == 2  # one feed down, the other still delivers
 
 
 def test_collect_paginates_until_empty_page():

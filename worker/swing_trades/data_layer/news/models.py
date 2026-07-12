@@ -41,7 +41,7 @@ class RawNewsItem:
 
     source: str                         # BSE | NSE | RSS_GNEWS | RSS_ET | RSS_LIVEMINT | RSS_PRWIRE | RSS_MC
     source_uid: str                     # deterministic dedup id, e.g. 'bse:'+NEWSID
-    company_name: str                   # long/legal name as reported
+    company_name: Optional[str]         # clean name for exchange filings; None for RSS (LLM extracts it)
     headline: str                       # subject / headline free text
     event_date: _dt.date                # announcement / publish date (IST)
     category: Optional[str] = None      # BSE CATEGORYNAME / NSE high-level subject
