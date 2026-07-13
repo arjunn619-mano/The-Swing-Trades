@@ -10,7 +10,7 @@ export function ChartLink({ exchange, ticker }: { exchange: string | null; ticke
       target="_blank"
       rel="noopener noreferrer"
       title="Open chart on TradingView"
-      className="text-sky-400 hover:text-sky-300"
+      className="text-slate-400 hover:text-slate-200"
     >
       ↗
     </a>
