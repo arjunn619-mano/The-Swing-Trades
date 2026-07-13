@@ -9,7 +9,7 @@ import type { TrackerRow } from "@/lib/queries";
 type SortKey = "symbol" | "firstSeenDate" | "entryClose" | "currentClose" | "dayN" | "latestReturn" | "maxReturn" | "appearanceCount";
 type SortDir = "asc" | "desc";
 type Sort = { key: SortKey; dir: SortDir };
-type ReturnFilter = "all" | "positive" | "negative";
+type ReturnFilter = "all" | "positive" | "negative" | "pullback";
 
 const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "chart"; label: string; align?: "right"; sortable?: boolean }[] = [
   { key: "star", label: "" },
@@ -158,6 +158,9 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
     let out = strategyFiltered;
     if (returnFilter === "positive") out = out.filter((r) => (r.latestReturn ?? 0) > 0);
     else if (returnFilter === "negative") out = out.filter((r) => (r.latestReturn ?? 0) < 0);
+    // Pullback: currently below its own peak (max return > current return) — it gave some back.
+    else if (returnFilter === "pullback")
+      out = out.filter((r) => r.maxReturn !== null && r.latestReturn !== null && r.maxReturn > r.latestReturn);
 
     const q = query.trim().toLowerCase();
     if (q) out = out.filter((r) => (r.symbol ?? "").toLowerCase().includes(q) || (r.name ?? "").toLowerCase().includes(q));
@@ -255,6 +258,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
     { key: "all", label: "All" },
     { key: "positive", label: "Positive" },
     { key: "negative", label: "Negative" },
+    { key: "pullback", label: "Pullback" },
   ];
 
   const inputCls =
