@@ -253,10 +253,12 @@ CREATE TABLE IF NOT EXISTS news_events (
     window_end_date  DATE NOT NULL,                              -- event_date + NEWS_DEDUP_WINDOW_DAYS
     provenance       TEXT NOT NULL DEFAULT 'rss_unconfirmed',    -- rss_unconfirmed | exchange_confirmed
     headline         TEXT,
+    url              TEXT,                                       -- link to glance at the news (NSURL/PDF/article)
     enrolled         BOOLEAN NOT NULL DEFAULT FALSE,             -- flipped once a tracker entry is priced
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE news_events ADD COLUMN IF NOT EXISTS url TEXT;  -- for DBs created before the url column
 CREATE INDEX IF NOT EXISTS idx_news_events_lookup ON news_events (isin, catalyst_tag, event_date);
 CREATE INDEX IF NOT EXISTS idx_news_events_unenrolled ON news_events (enrolled) WHERE enrolled = FALSE;
 
@@ -282,3 +284,22 @@ CREATE TABLE IF NOT EXISTS news_event_sources (
     fetched_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_news_event_sources_event ON news_event_sources (event_id);
+
+-- One-time (idempotent) catch-up for rows created before news_events.url existed: fill each event's
+-- url from its earliest attached source, then propagate the LATEST event's url/headline onto the
+-- matching news_positive tracker entry so already-enrolled picks become clickable. Guarded by IS NULL
+-- so it only ever touches empties — a no-op on a fresh DB and on every subsequent run.
+UPDATE news_events e SET url = s.url
+FROM (SELECT DISTINCT ON (event_id) event_id, url FROM news_event_sources
+      WHERE url IS NOT NULL ORDER BY event_id, id) s
+WHERE s.event_id = e.id AND e.url IS NULL;
+
+UPDATE tracker_entries te SET
+    catalyst_url      = ev.url,
+    catalyst_headline = COALESCE(te.catalyst_headline, ev.headline)
+FROM (SELECT DISTINCT ON (instrument_id) instrument_id, headline, url
+      FROM news_events WHERE instrument_id IS NOT NULL
+      ORDER BY instrument_id, event_date DESC, id DESC) ev
+WHERE te.instrument_id = ev.instrument_id
+  AND te.strategy_id = (SELECT id FROM strategies WHERE key = 'news_positive')
+  AND te.catalyst_url IS NULL AND ev.url IS NOT NULL;

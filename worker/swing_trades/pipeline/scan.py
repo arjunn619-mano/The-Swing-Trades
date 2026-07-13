@@ -99,12 +99,16 @@ def _enrol_news_events(store, trade_date, close_by_instrument, horizon_days):
             no_price += 1
             continue
         if ev.instrument_id in active_ids:
-            store.increment_tracker_entry(ev.instrument_id, strat_id, trade_date)
+            # Same stock, fresh catalyst: bump the count AND surface the latest news + link.
+            store.increment_tracker_entry(
+                ev.instrument_id, strat_id, trade_date,
+                catalyst_tag=ev.catalyst_tag, catalyst_headline=ev.headline, catalyst_url=ev.url,
+            )
             incremented += 1
         else:
             store.create_tracker_entry(
                 ev.instrument_id, strat_id, trade_date, close, horizon_days,
-                catalyst_tag=ev.catalyst_tag, catalyst_headline=ev.headline,
+                catalyst_tag=ev.catalyst_tag, catalyst_headline=ev.headline, catalyst_url=ev.url,
             )
             active_ids.add(ev.instrument_id)
             created += 1

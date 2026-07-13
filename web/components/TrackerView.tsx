@@ -11,11 +11,12 @@ type SortDir = "asc" | "desc";
 type Sort = { key: SortKey; dir: SortDir };
 type ReturnFilter = "all" | "positive" | "negative";
 
-const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "chart"; label: string; align?: "right"; sortable?: boolean }[] = [
+const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "news" | "chart"; label: string; align?: "right"; sortable?: boolean }[] = [
   { key: "star", label: "" },
   { key: "symbol", label: "Symbol", sortable: true },
   { key: "name", label: "Name" },
   { key: "strategy", label: "Strategy" },
+  { key: "news", label: "News" },
   { key: "firstSeenDate", label: "First seen", sortable: true },
   { key: "entryClose", label: "Entry close", align: "right", sortable: true },
   { key: "currentClose", label: "Current close", align: "right", sortable: true },
@@ -80,6 +81,33 @@ function ReturnCell({ value: v }: { value: number | null }) {
   if (v === null || Number.isNaN(v)) return <span className="text-slate-500">—</span>;
   const tone = v > 0 ? "bg-emerald-500/15 text-emerald-300" : v < 0 ? "bg-rose-500/15 text-rose-300" : "bg-slate-700/40 text-slate-300";
   return <span className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${tone}`}>{v > 0 ? "+" : ""}{pct(v)}</span>;
+}
+
+// News catalyst for a news_positive pick: a compact tag chip + the (latest) headline, clickable
+// through to the filing/article so you can glance at what the news actually is. Blank for the
+// systematic strategies (which have no catalyst). When a stock draws more than one catalyst, the
+// tracker stores the LATEST one here and the "Appears" count shows how many have hit.
+function NewsCell({ tag, headline, url }: { tag: string | null; headline: string | null; url: string | null }) {
+  if (!tag && !headline && !url) return <span className="text-slate-600">—</span>;
+  const text = headline ?? "View filing";
+  const body = (
+    <>
+      {tag ? (
+        <span className="mr-1 align-middle rounded bg-amber-500/15 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
+          {tag.replace(/_/g, " ")}
+        </span>
+      ) : null}
+      <span className="align-middle">{text}</span>
+      {url ? <span className="ml-0.5 align-middle text-slate-500">↗</span> : null}
+    </>
+  );
+  return url ? (
+    <a href={url} target="_blank" rel="noopener noreferrer" title={text} className="block max-w-[280px] truncate text-sky-300 hover:text-sky-200 hover:underline">
+      {body}
+    </a>
+  ) : (
+    <span title={text} className="block max-w-[280px] truncate text-slate-300">{body}</span>
+  );
 }
 
 // Day N of the 100-trading-day window as a scannable bar: slate while running,
@@ -436,7 +464,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
 
         {/* Desktop table */}
         <div className="hidden overflow-x-auto rounded-xl border border-navy-700/60 bg-navy-900/40 md:block">
-          <table className="w-full min-w-[1000px] text-sm">
+          <table className="w-full min-w-[1180px] text-sm">
             <thead>
               <tr className="bg-navy-900/70 text-left text-xs uppercase tracking-wide text-slate-400">
                 {COLUMNS.map((c) => {
@@ -472,6 +500,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
                   <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-100">{r.symbol}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{r.name}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-300">{r.strategy}</td>
+                  <td className="px-3 py-2 text-xs"><NewsCell tag={r.catalystTag} headline={r.catalystHeadline} url={r.catalystUrl} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-300">{dateStr(r.firstSeenDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.entryClose)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.currentClose)}</td>
@@ -499,6 +528,9 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
                 <ReturnCell value={r.latestReturn} />
               </div>
               <div className="mt-1 truncate text-xs text-slate-500">{r.name}</div>
+              {r.catalystTag || r.catalystHeadline || r.catalystUrl ? (
+                <div className="mt-1.5 text-xs"><NewsCell tag={r.catalystTag} headline={r.catalystHeadline} url={r.catalystUrl} /></div>
+              ) : null}
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                 <span className="text-slate-500">Strategy <span className="text-slate-300">{r.strategy}</span></span>
                 <span className="text-slate-500">First seen <span className="text-slate-300">{dateStr(r.firstSeenDate)}</span></span>

@@ -38,6 +38,7 @@ class NewsEventRow:
     provenance: str
     headline: Optional[str]
     enrolled: bool
+    url: Optional[str] = None   # link to glance at the news (NSURL / PDF / article)
 
 
 class ScanStore:
@@ -56,7 +57,7 @@ class ScanStore:
     def insert_signals(self, run_id: int, strategy_id: int, trade_date: _dt.date, signals: Sequence[SignalRow]) -> int: raise NotImplementedError
     def get_active_tracker(self, strategy_id: int) -> list[TrackerEntryState]: raise NotImplementedError
     def create_tracker_entry(self, instrument_id: int, strategy_id: int, first_seen_date: _dt.date, entry_close: float, horizon_days: int, *, catalyst_tag: Optional[str] = None, catalyst_source: Optional[str] = None, catalyst_headline: Optional[str] = None, catalyst_url: Optional[str] = None, catalyst_decision: Optional[str] = None) -> None: raise NotImplementedError
-    def increment_tracker_entry(self, instrument_id: int, strategy_id: int, last_seen_date: _dt.date) -> None: raise NotImplementedError
+    def increment_tracker_entry(self, instrument_id: int, strategy_id: int, last_seen_date: _dt.date, *, catalyst_tag: Optional[str] = None, catalyst_headline: Optional[str] = None, catalyst_url: Optional[str] = None) -> None: raise NotImplementedError
     def complete_tracker_entries(self, strategy_id: int, instrument_ids: Sequence[int]) -> None: raise NotImplementedError
     def fill_pending_next_open(self, trade_date: _dt.date, prev_trading_day: _dt.date, opens_by_instrument: dict[int, float]) -> int: raise NotImplementedError
     def record_observation(self, instrument_id: int, strategy_id: int, trade_date: _dt.date, trading_day_n: int, close: float, return_vs_close: float, return_vs_open: Optional[float]) -> None: raise NotImplementedError
@@ -67,7 +68,7 @@ class ScanStore:
     def ensure_instrument(self, instrument) -> int: raise NotImplementedError
     def news_source_exists(self, source_uid: str) -> bool: raise NotImplementedError
     def find_open_news_event(self, isin: str, catalyst_tag: str, min_date: _dt.date, max_date: _dt.date): raise NotImplementedError
-    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline) -> int: raise NotImplementedError
+    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline, url=None) -> int: raise NotImplementedError
     def attach_news_source(self, event_id: int, source_uid: str, source: str, url: Optional[str]) -> None: raise NotImplementedError
     def set_news_event_provenance(self, event_id: int, provenance: str) -> None: raise NotImplementedError
     def get_unenrolled_news_events(self) -> list: raise NotImplementedError
@@ -195,11 +196,16 @@ class FakeStore(ScanStore):
             "catalyst_tag": catalyst_tag,
         }
 
-    def increment_tracker_entry(self, instrument_id, strategy_id, last_seen_date) -> None:
+    def increment_tracker_entry(self, instrument_id, strategy_id, last_seen_date, *,
+                                catalyst_tag=None, catalyst_headline=None, catalyst_url=None) -> None:
         e = self.tracker.get((instrument_id, strategy_id))
         if e:
             e["appearance_count"] += 1
             e["last_seen_date"] = last_seen_date  # entry_close NEVER changes (Rule 3)
+            if catalyst_tag is not None:  # a news re-appearance: surface the LATEST catalyst
+                e["catalyst_tag"] = catalyst_tag
+                e["catalyst_headline"] = catalyst_headline
+                e["catalyst_url"] = catalyst_url
 
     def complete_tracker_entries(self, strategy_id, instrument_ids) -> None:
         for iid in instrument_ids:
@@ -267,7 +273,8 @@ class FakeStore(ScanStore):
     def _news_row(self, e: dict) -> NewsEventRow:
         return NewsEventRow(id=e["id"], isin=e["isin"], instrument_id=e["instrument_id"],
                             catalyst_tag=e["catalyst_tag"], event_date=e["event_date"],
-                            provenance=e["provenance"], headline=e["headline"], enrolled=e["enrolled"])
+                            provenance=e["provenance"], headline=e["headline"], enrolled=e["enrolled"],
+                            url=e.get("url"))
 
     def find_open_news_event(self, isin, catalyst_tag, min_date, max_date):
         best = None
@@ -277,12 +284,12 @@ class FakeStore(ScanStore):
                     best = e
         return self._news_row(best) if best else None
 
-    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline) -> int:
+    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline, url=None) -> int:
         self._news_seq += 1
         self.news_events[self._news_seq] = {
             "id": self._news_seq, "isin": isin, "instrument_id": instrument_id,
             "catalyst_tag": catalyst_tag, "event_date": event_date, "window_end_date": window_end_date,
-            "provenance": provenance, "headline": headline, "enrolled": False,
+            "provenance": provenance, "headline": headline, "url": url, "enrolled": False,
         }
         return self._news_seq
 
@@ -439,13 +446,22 @@ class PostgresStore(ScanStore):
             )
         self.conn.commit()
 
-    def increment_tracker_entry(self, instrument_id, strategy_id, last_seen_date) -> None:
+    def increment_tracker_entry(self, instrument_id, strategy_id, last_seen_date, *,
+                                catalyst_tag=None, catalyst_headline=None, catalyst_url=None) -> None:
         with self._cur() as cur:
-            cur.execute(
-                "UPDATE tracker_entries SET appearance_count=appearance_count+1, last_seen_date=%s "
-                "WHERE instrument_id=%s AND strategy_id=%s",
-                (last_seen_date, instrument_id, strategy_id),
-            )
+            if catalyst_tag is not None:  # a news re-appearance: surface the LATEST catalyst
+                cur.execute(
+                    "UPDATE tracker_entries SET appearance_count=appearance_count+1, last_seen_date=%s, "
+                    "catalyst_tag=%s, catalyst_headline=%s, catalyst_url=%s "
+                    "WHERE instrument_id=%s AND strategy_id=%s",
+                    (last_seen_date, catalyst_tag, catalyst_headline, catalyst_url, instrument_id, strategy_id),
+                )
+            else:
+                cur.execute(
+                    "UPDATE tracker_entries SET appearance_count=appearance_count+1, last_seen_date=%s "
+                    "WHERE instrument_id=%s AND strategy_id=%s",
+                    (last_seen_date, instrument_id, strategy_id),
+                )
         self.conn.commit()
 
     def complete_tracker_entries(self, strategy_id, instrument_ids) -> None:
@@ -549,7 +565,7 @@ class PostgresStore(ScanStore):
     def find_open_news_event(self, isin, catalyst_tag, min_date, max_date):
         with self._cur() as cur:
             cur.execute(
-                "SELECT id, isin, instrument_id, catalyst_tag, event_date, provenance, headline, enrolled "
+                "SELECT id, isin, instrument_id, catalyst_tag, event_date, provenance, headline, enrolled, url "
                 "FROM news_events WHERE isin=%s AND catalyst_tag=%s AND event_date BETWEEN %s AND %s "
                 "ORDER BY event_date DESC LIMIT 1",
                 (isin, catalyst_tag, min_date, max_date),
@@ -558,14 +574,14 @@ class PostgresStore(ScanStore):
         if not row:
             return None
         return NewsEventRow(id=row[0], isin=row[1], instrument_id=row[2], catalyst_tag=row[3],
-                            event_date=row[4], provenance=row[5], headline=row[6], enrolled=row[7])
+                            event_date=row[4], provenance=row[5], headline=row[6], enrolled=row[7], url=row[8])
 
-    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline) -> int:
+    def create_news_event(self, isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline, url=None) -> int:
         with self._cur() as cur:
             cur.execute(
                 "INSERT INTO news_events (isin, instrument_id, catalyst_tag, event_date, window_end_date, "
-                "provenance, headline) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-                (isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline),
+                "provenance, headline, url) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                (isin, instrument_id, catalyst_tag, event_date, window_end_date, provenance, headline, url),
             )
             eid = cur.fetchone()[0]
         self.conn.commit()
@@ -588,12 +604,12 @@ class PostgresStore(ScanStore):
     def get_unenrolled_news_events(self) -> list:
         with self._cur() as cur:
             cur.execute(
-                "SELECT id, isin, instrument_id, catalyst_tag, event_date, provenance, headline, enrolled "
+                "SELECT id, isin, instrument_id, catalyst_tag, event_date, provenance, headline, enrolled, url "
                 "FROM news_events WHERE enrolled = FALSE ORDER BY event_date"
             )
             rows = cur.fetchall()
         return [NewsEventRow(id=r[0], isin=r[1], instrument_id=r[2], catalyst_tag=r[3], event_date=r[4],
-                             provenance=r[5], headline=r[6], enrolled=r[7]) for r in rows]
+                             provenance=r[5], headline=r[6], enrolled=r[7], url=r[8]) for r in rows]
 
     def mark_news_event_enrolled(self, event_id) -> None:
         with self._cur() as cur:

@@ -53,7 +53,7 @@ def process_candidate(store, c: ResolvedCandidate, window_days: int = NEWS_DEDUP
 
     eid = store.create_news_event(
         c.isin, instrument_id, c.catalyst_tag, c.event_date,
-        c.event_date + _dt.timedelta(days=window_days), c.provenance, c.headline,
+        c.event_date + _dt.timedelta(days=window_days), c.provenance, c.headline, c.url,
     )
     store.attach_news_source(eid, c.source_uid, c.source, c.url)
     return "new_event"

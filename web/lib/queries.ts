@@ -48,6 +48,9 @@ export type TrackerRow = {
   latestReturn: number | null;
   maxReturn: number | null; // peak close-based return since entry (excludes day 0); null until day 1
   dayN: number | null;
+  catalystTag: string | null; // news_positive only: what kind of news (ORDER_WIN, RESULTS_POSITIVE, …)
+  catalystHeadline: string | null; // the (latest) news headline, for a quick glance
+  catalystUrl: string | null; // link to the filing / article behind that headline
 };
 
 export type NewListing = {
@@ -184,6 +187,7 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
     const rows = await sql`
       SELECT t.instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
              t.first_seen_date, t.entry_close, t.appearance_count, t.status,
+             t.catalyst_tag, t.catalyst_headline, t.catalyst_url,
              o.return_vs_close, o.trading_day_n, o.close AS current_close, mx.max_return
       FROM tracker_entries t
       JOIN instruments i ON i.id = t.instrument_id
@@ -212,6 +216,9 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
       latestReturn: num(r.return_vs_close),
       maxReturn: num(r.max_return),
       dayN: r.trading_day_n ?? null,
+      catalystTag: r.catalyst_tag ?? null,
+      catalystHeadline: r.catalyst_headline ?? null,
+      catalystUrl: r.catalyst_url ?? null,
     }));
   } catch (e) {
     console.error("getTrackerEntries failed:", e);
@@ -227,6 +234,7 @@ export async function getStarredTracker(): Promise<TrackerRow[]> {
     const rows = await sql`
       SELECT t.instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
              t.first_seen_date, t.entry_close, t.appearance_count, t.status,
+             t.catalyst_tag, t.catalyst_headline, t.catalyst_url,
              o.return_vs_close, o.trading_day_n, o.close AS current_close, mx.max_return
       FROM tracker_entries t
       JOIN starred sr ON sr.instrument_id = t.instrument_id
@@ -256,6 +264,9 @@ export async function getStarredTracker(): Promise<TrackerRow[]> {
       latestReturn: num(r.return_vs_close),
       maxReturn: num(r.max_return),
       dayN: r.trading_day_n ?? null,
+      catalystTag: r.catalyst_tag ?? null,
+      catalystHeadline: r.catalyst_headline ?? null,
+      catalystUrl: r.catalyst_url ?? null,
     }));
   } catch {
     return []; // starred / tracker tables may not exist yet
