@@ -9,7 +9,7 @@ import type { TrackerRow } from "@/lib/queries";
 type SortKey = "symbol" | "firstSeenDate" | "entryClose" | "currentClose" | "dayN" | "latestReturn" | "maxReturn" | "appearanceCount";
 type SortDir = "asc" | "desc";
 type Sort = { key: SortKey; dir: SortDir };
-type ReturnFilter = "all" | "positive" | "negative" | "pullback";
+type ReturnFilter = "all" | "positive" | "negative";
 
 const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "chart"; label: string; align?: "right"; sortable?: boolean }[] = [
   { key: "star", label: "" },
@@ -105,6 +105,7 @@ function DayProgress({ dayN }: { dayN: number | null }) {
 export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredIds: number[] }) {
   const [strategy, setStrategy] = useState<string>("all");
   const [returnFilter, setReturnFilter] = useState<ReturnFilter>("all");
+  const [pullbackOnly, setPullbackOnly] = useState<boolean>(false);
   const [query, setQuery] = useState<string>("");
   const [sorts, setSorts] = useState<Sort[]>([]);
   const [ranges, setRanges] = useState<Record<string, { min: string; max: string }>>({});
@@ -158,9 +159,8 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
     let out = strategyFiltered;
     if (returnFilter === "positive") out = out.filter((r) => (r.latestReturn ?? 0) > 0);
     else if (returnFilter === "negative") out = out.filter((r) => (r.latestReturn ?? 0) < 0);
-    // Pullback: currently below its own peak (max return > current return) — it gave some back.
-    else if (returnFilter === "pullback")
-      out = out.filter((r) => r.maxReturn !== null && r.latestReturn !== null && r.maxReturn > r.latestReturn);
+    // Pullback STACKS on top of the direction filter: currently below its own peak — gave some back.
+    if (pullbackOnly) out = out.filter((r) => r.maxReturn !== null && r.latestReturn !== null && r.maxReturn > r.latestReturn);
 
     const q = query.trim().toLowerCase();
     if (q) out = out.filter((r) => (r.symbol ?? "").toLowerCase().includes(q) || (r.name ?? "").toLowerCase().includes(q));
@@ -207,7 +207,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
       });
     }
     return arr;
-  }, [strategyFiltered, returnFilter, query, ranges, dateFrom, dateTo, sorts]);
+  }, [strategyFiltered, returnFilter, pullbackOnly, query, ranges, dateFrom, dateTo, sorts]);
 
   // Click a column: add as next sort level (desc) → flip to asc → remove.
   function cycleSort(key: SortKey) {
@@ -258,7 +258,6 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
     { key: "all", label: "All" },
     { key: "positive", label: "Positive" },
     { key: "negative", label: "Negative" },
-    { key: "pullback", label: "Pullback" },
   ];
 
   const inputCls =
@@ -420,6 +419,18 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
                 </button>
               ))}
             </div>
+            {/* Pullback toggle — stacks on top of the direction filter (combine + sort within) */}
+            <button
+              onClick={() => setPullbackOnly((v) => !v)}
+              title="Show only stocks currently below their own peak (max return > current return)"
+              className={`rounded-md border px-2.5 py-1 text-sm transition-colors ${
+                pullbackOnly
+                  ? "border-sky-500/50 bg-sky-500/15 text-sky-300"
+                  : "border-navy-700/60 bg-navy-900/60 text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              ↓ Pullback
+            </button>
           </div>
         </div>
 
