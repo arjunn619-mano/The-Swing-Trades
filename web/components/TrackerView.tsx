@@ -6,7 +6,7 @@ import { ChartLink } from "@/components/ui";
 import { dateStr, money, pct } from "@/lib/format";
 import type { TrackerRow } from "@/lib/queries";
 
-type SortKey = "symbol" | "firstSeenDate" | "entryClose" | "currentClose" | "dayN" | "latestReturn" | "appearanceCount";
+type SortKey = "symbol" | "firstSeenDate" | "entryClose" | "currentClose" | "dayN" | "latestReturn" | "maxReturn" | "appearanceCount";
 type SortDir = "asc" | "desc";
 type Sort = { key: SortKey; dir: SortDir };
 type ReturnFilter = "all" | "positive" | "negative";
@@ -21,6 +21,7 @@ const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "chart"; label: s
   { key: "currentClose", label: "Current close", align: "right", sortable: true },
   { key: "dayN", label: "Day", align: "right", sortable: true },
   { key: "latestReturn", label: "Return", align: "right", sortable: true },
+  { key: "maxReturn", label: "Max return", align: "right", sortable: true },
   { key: "appearanceCount", label: "Appears", align: "right", sortable: true },
   { key: "chart", label: "Chart", align: "right" },
 ];
@@ -35,6 +36,7 @@ const RANGE_FIELDS: { key: string; label: string; get: (r: TrackerRow) => number
   { key: "currentClose", label: "Current close (₹)", get: (r) => r.currentClose },
   { key: "dayN", label: "Day (0–100)", get: (r) => r.dayN },
   { key: "latestReturn", label: "Return (%)", get: (r) => r.latestReturn, pct: true },
+  { key: "maxReturn", label: "Max return (%)", get: (r) => r.maxReturn, pct: true },
   { key: "appearanceCount", label: "Appears", get: (r) => r.appearanceCount },
 ];
 
@@ -65,6 +67,8 @@ function value(r: TrackerRow, key: SortKey): number | string {
       return r.dayN ?? -Infinity;
     case "latestReturn":
       return r.latestReturn ?? -Infinity;
+    case "maxReturn":
+      return r.maxReturn ?? -Infinity;
     case "appearanceCount":
       return r.appearanceCount ?? -Infinity;
     default:
@@ -417,7 +421,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
 
         {/* Desktop table */}
         <div className="hidden overflow-x-auto rounded-xl border border-navy-700/60 bg-navy-900/40 md:block">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[1000px] text-sm">
             <thead>
               <tr className="bg-navy-900/70 text-left text-xs uppercase tracking-wide text-slate-400">
                 {COLUMNS.map((c) => {
@@ -458,6 +462,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.currentClose)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right"><DayProgress dayN={r.dayN} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-right"><ReturnCell value={r.latestReturn} /></td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right"><ReturnCell value={r.maxReturn} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-300">{r.appearanceCount}×</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right"><ChartLink exchange={r.exchange} ticker={r.symbol} /></td>
                 </tr>
@@ -485,6 +490,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
                 <span className="text-slate-500">Entry <span className="text-slate-300">{money(r.entryClose)}</span></span>
                 <span className="text-slate-500">Now <span className="text-slate-300">{money(r.currentClose)}</span></span>
                 <span className="inline-flex items-center gap-1 text-slate-500">Day <DayProgress dayN={r.dayN} /></span>
+                <span className="inline-flex items-center gap-1 text-slate-500">Max <ReturnCell value={r.maxReturn} /></span>
                 <span className="text-slate-500">Appears <span className="text-slate-300">{r.appearanceCount}×</span></span>
               </div>
             </div>

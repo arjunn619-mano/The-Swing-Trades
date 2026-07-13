@@ -46,6 +46,7 @@ export type TrackerRow = {
   appearanceCount: number;
   status: string;
   latestReturn: number | null;
+  maxReturn: number | null; // peak close-based return since entry (excludes day 0); null until day 1
   dayN: number | null;
 };
 
@@ -183,7 +184,7 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
     const rows = await sql`
       SELECT t.instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
              t.first_seen_date, t.entry_close, t.appearance_count, t.status,
-             o.return_vs_close, o.trading_day_n, o.close AS current_close
+             o.return_vs_close, o.trading_day_n, o.close AS current_close, mx.max_return
       FROM tracker_entries t
       JOIN instruments i ON i.id = t.instrument_id
       JOIN strategies st ON st.id = t.strategy_id
@@ -191,6 +192,10 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
         SELECT return_vs_close, trading_day_n, close FROM tracker_observations
         WHERE tracker_entry_id = t.id ORDER BY trade_date DESC LIMIT 1
       ) o ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT MAX(return_vs_close) AS max_return FROM tracker_observations
+        WHERE tracker_entry_id = t.id AND trading_day_n > 0
+      ) mx ON TRUE
       ORDER BY t.first_seen_date DESC, i.nse_symbol
       LIMIT 3000`;
     return rows.map((r) => ({
@@ -205,6 +210,7 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
       appearanceCount: r.appearance_count ?? 1,
       status: r.status,
       latestReturn: num(r.return_vs_close),
+      maxReturn: num(r.max_return),
       dayN: r.trading_day_n ?? null,
     }));
   } catch (e) {
@@ -221,7 +227,7 @@ export async function getStarredTracker(): Promise<TrackerRow[]> {
     const rows = await sql`
       SELECT t.instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
              t.first_seen_date, t.entry_close, t.appearance_count, t.status,
-             o.return_vs_close, o.trading_day_n, o.close AS current_close
+             o.return_vs_close, o.trading_day_n, o.close AS current_close, mx.max_return
       FROM tracker_entries t
       JOIN starred sr ON sr.instrument_id = t.instrument_id
       JOIN instruments i ON i.id = t.instrument_id
@@ -230,6 +236,10 @@ export async function getStarredTracker(): Promise<TrackerRow[]> {
         SELECT return_vs_close, trading_day_n, close FROM tracker_observations
         WHERE tracker_entry_id = t.id ORDER BY trade_date DESC LIMIT 1
       ) o ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT MAX(return_vs_close) AS max_return FROM tracker_observations
+        WHERE tracker_entry_id = t.id AND trading_day_n > 0
+      ) mx ON TRUE
       ORDER BY t.first_seen_date DESC, i.nse_symbol
       LIMIT 3000`;
     return rows.map((r) => ({
@@ -244,6 +254,7 @@ export async function getStarredTracker(): Promise<TrackerRow[]> {
       appearanceCount: r.appearance_count ?? 1,
       status: r.status,
       latestReturn: num(r.return_vs_close),
+      maxReturn: num(r.max_return),
       dayN: r.trading_day_n ?? null,
     }));
   } catch {
