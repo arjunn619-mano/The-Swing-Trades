@@ -24,7 +24,6 @@ const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "news" | "chart";
   { key: "latestReturn", label: "Return", align: "right", sortable: true },
   { key: "maxReturn", label: "Max return", align: "right", sortable: true },
   { key: "appearanceCount", label: "Appears", align: "right", sortable: true },
-  { key: "chart", label: "Chart", align: "right" },
 ];
 
 const SORT_OPTIONS = COLUMNS.filter((c) => c.sortable).map((c) => ({ key: c.key as SortKey, label: c.label }));
@@ -464,7 +463,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
 
         {/* Desktop table */}
         <div className="hidden overflow-x-auto rounded-xl border border-navy-700/60 bg-navy-900/40 md:block">
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className="w-full min-w-[1080px] text-sm">
             <thead>
               <tr className="bg-navy-900/70 text-left text-xs uppercase tracking-wide text-slate-400">
                 {COLUMNS.map((c) => {
@@ -497,7 +496,9 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
               {filtered.map((r, i) => (
                 <tr key={i} className="border-t border-navy-700/40 hover:bg-navy-800/40">
                   <td className="px-3 py-2"><StarButton instrumentId={r.instrumentId} initialStarred={starred.has(r.instrumentId)} /></td>
-                  <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-100">{r.symbol}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-100">
+                    <span className="inline-flex items-center gap-1.5">{r.symbol}<ChartLink exchange={r.exchange} ticker={r.symbol} /></span>
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{r.name}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-300">{r.strategy}</td>
                   <td className="px-3 py-2 text-xs"><NewsCell tag={r.catalystTag} headline={r.catalystHeadline} url={r.catalystUrl} /></td>
@@ -508,7 +509,6 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
                   <td className="whitespace-nowrap px-3 py-2 text-right"><ReturnCell value={r.latestReturn} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-right"><ReturnCell value={r.maxReturn} /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-300">{r.appearanceCount}×</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right"><ChartLink exchange={r.exchange} ticker={r.symbol} /></td>
                 </tr>
               ))}
             </tbody>
