@@ -261,6 +261,7 @@ CREATE TABLE IF NOT EXISTS news_events (
 ALTER TABLE news_events ADD COLUMN IF NOT EXISTS url TEXT;  -- for DBs created before the url column
 CREATE INDEX IF NOT EXISTS idx_news_events_lookup ON news_events (isin, catalyst_tag, event_date);
 CREATE INDEX IF NOT EXISTS idx_news_events_unenrolled ON news_events (enrolled) WHERE enrolled = FALSE;
+CREATE INDEX IF NOT EXISTS idx_news_events_instrument ON news_events (instrument_id);  -- dashboard news-url lookup
 
 -- Permanent IPO / new-listing record. A mainboard stock (series EQ/BE/A/B) enters here the first
 -- time it's seen with < 45 bars of history (a genuinely fresh listing — the backfilled starter

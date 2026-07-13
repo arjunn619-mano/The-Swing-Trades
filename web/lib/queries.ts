@@ -188,7 +188,7 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
       SELECT t.instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
              t.first_seen_date, t.entry_close, t.appearance_count, t.status,
              t.catalyst_tag, t.catalyst_headline, t.catalyst_url,
-             o.return_vs_close, o.trading_day_n, o.close AS current_close, mx.max_return
+             o.return_vs_close, o.trading_day_n, o.close AS current_close, mx.max_return, nv.news_src_url
       FROM tracker_entries t
       JOIN instruments i ON i.id = t.instrument_id
       JOIN strategies st ON st.id = t.strategy_id
@@ -200,6 +200,12 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
         SELECT MAX(return_vs_close) AS max_return FROM tracker_observations
         WHERE tracker_entry_id = t.id AND trading_day_n > 0
       ) mx ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT s.url AS news_src_url FROM news_events ne
+        JOIN news_event_sources s ON s.event_id = ne.id
+        WHERE ne.instrument_id = t.instrument_id AND s.url IS NOT NULL
+        ORDER BY ne.event_date DESC, ne.id DESC, s.id LIMIT 1
+      ) nv ON st.key = 'news_positive'
       ORDER BY t.first_seen_date DESC, i.nse_symbol
       LIMIT 3000`;
     return rows.map((r) => ({
@@ -218,7 +224,9 @@ export async function getTrackerEntries(): Promise<TrackerRow[]> {
       dayN: r.trading_day_n ?? null,
       catalystTag: r.catalyst_tag ?? null,
       catalystHeadline: r.catalyst_headline ?? null,
-      catalystUrl: r.catalyst_url ?? null,
+      // Prefer the stored url; fall back to the live source url so news is clickable even
+      // before the denormalized column is backfilled. Only for news rows (catalyst_tag set).
+      catalystUrl: r.catalyst_tag ? (r.catalyst_url ?? r.news_src_url ?? null) : null,
     }));
   } catch (e) {
     console.error("getTrackerEntries failed:", e);
@@ -235,7 +243,7 @@ export async function getStarredTracker(): Promise<TrackerRow[]> {
       SELECT t.instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref, st.display_name AS strategy,
              t.first_seen_date, t.entry_close, t.appearance_count, t.status,
              t.catalyst_tag, t.catalyst_headline, t.catalyst_url,
-             o.return_vs_close, o.trading_day_n, o.close AS current_close, mx.max_return
+             o.return_vs_close, o.trading_day_n, o.close AS current_close, mx.max_return, nv.news_src_url
       FROM tracker_entries t
       JOIN starred sr ON sr.instrument_id = t.instrument_id
       JOIN instruments i ON i.id = t.instrument_id
@@ -248,6 +256,12 @@ export async function getStarredTracker(): Promise<TrackerRow[]> {
         SELECT MAX(return_vs_close) AS max_return FROM tracker_observations
         WHERE tracker_entry_id = t.id AND trading_day_n > 0
       ) mx ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT s.url AS news_src_url FROM news_events ne
+        JOIN news_event_sources s ON s.event_id = ne.id
+        WHERE ne.instrument_id = t.instrument_id AND s.url IS NOT NULL
+        ORDER BY ne.event_date DESC, ne.id DESC, s.id LIMIT 1
+      ) nv ON st.key = 'news_positive'
       ORDER BY t.first_seen_date DESC, i.nse_symbol
       LIMIT 3000`;
     return rows.map((r) => ({
@@ -266,7 +280,7 @@ export async function getStarredTracker(): Promise<TrackerRow[]> {
       dayN: r.trading_day_n ?? null,
       catalystTag: r.catalyst_tag ?? null,
       catalystHeadline: r.catalyst_headline ?? null,
-      catalystUrl: r.catalyst_url ?? null,
+      catalystUrl: r.catalyst_tag ? (r.catalyst_url ?? r.news_src_url ?? null) : null,
     }));
   } catch {
     return []; // starred / tracker tables may not exist yet
