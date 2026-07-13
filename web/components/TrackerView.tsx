@@ -12,14 +12,13 @@ type Sort = { key: SortKey; dir: SortDir };
 type ReturnFilter = "all" | "positive" | "negative";
 
 const COLUMNS: { key: SortKey | "star" | "name" | "strategy" | "news" | "chart"; label: string; align?: "right"; sortable?: boolean }[] = [
-  { key: "star", label: "" },
   { key: "symbol", label: "Symbol", sortable: true },
   { key: "name", label: "Name" },
   { key: "strategy", label: "Strategy" },
   { key: "news", label: "News" },
   { key: "firstSeenDate", label: "First seen", sortable: true },
-  { key: "entryClose", label: "Entry close", align: "right", sortable: true },
-  { key: "currentClose", label: "Current close", align: "right", sortable: true },
+  { key: "entryClose", label: "Entry", align: "right", sortable: true },
+  { key: "currentClose", label: "Now", align: "right", sortable: true },
   { key: "dayN", label: "Day", align: "right", sortable: true },
   { key: "latestReturn", label: "Return", align: "right", sortable: true },
   { key: "maxReturn", label: "Max return", align: "right", sortable: true },
@@ -86,9 +85,25 @@ function ReturnCell({ value: v }: { value: number | null }) {
 // through to the filing/article so you can glance at what the news actually is. Blank for the
 // systematic strategies (which have no catalyst). When a stock draws more than one catalyst, the
 // tracker stores the LATEST one here and the "Appears" count shows how many have hit.
-function NewsCell({ tag, headline, url }: { tag: string | null; headline: string | null; url: string | null }) {
+function NewsCell({ tag, headline, url, compact }: { tag: string | null; headline: string | null; url: string | null; compact?: boolean }) {
   if (!tag && !headline && !url) return <span className="text-slate-600">—</span>;
   const text = headline ?? "View filing";
+  // Compact (desktop table): a tag chip + ↗ only, with the full headline on hover — keeps the
+  // column narrow so the table fits without sideways scrolling.
+  if (compact) {
+    const chip = tag ? tag.replace(/_/g, " ") : "News";
+    const inner = (
+      <span className="inline-flex items-center gap-1">
+        <span className="rounded bg-amber-500/15 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">{chip}</span>
+        {url ? <span className="text-slate-500">↗</span> : null}
+      </span>
+    );
+    return url ? (
+      <a href={url} target="_blank" rel="noopener noreferrer" title={text} className="hover:opacity-80">{inner}</a>
+    ) : (
+      <span title={text}>{inner}</span>
+    );
+  }
   const body = (
     <>
       {tag ? (
@@ -463,7 +478,7 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
 
         {/* Desktop table */}
         <div className="hidden overflow-x-auto rounded-xl border border-navy-700/60 bg-navy-900/40 md:block">
-          <table className="w-full min-w-[1080px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="bg-navy-900/70 text-left text-xs uppercase tracking-wide text-slate-400">
                 {COLUMNS.map((c) => {
@@ -475,8 +490,8 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
                       onClick={c.sortable ? () => cycleSort(c.key as SortKey) : undefined}
                       title={c.sortable ? "Click to sort (click more columns to add tie-breakers)" : undefined}
                       className={`whitespace-nowrap px-3 py-2 font-medium ${c.align === "right" ? "text-right" : ""} ${
-                        c.sortable ? "cursor-pointer select-none hover:text-slate-200" : ""
-                      }`}
+                        c.key === "symbol" ? "sticky left-0 z-20 bg-navy-900" : ""
+                      } ${c.sortable ? "cursor-pointer select-none hover:text-slate-200" : ""}`}
                     >
                       <span className={`inline-flex items-center gap-1 ${c.align === "right" ? "flex-row-reverse" : ""}`}>
                         {c.label}
@@ -494,14 +509,17 @@ export function TrackerView({ rows, starredIds }: { rows: TrackerRow[]; starredI
             </thead>
             <tbody>
               {filtered.map((r, i) => (
-                <tr key={i} className="border-t border-navy-700/40 hover:bg-navy-800/40">
-                  <td className="px-3 py-2"><StarButton instrumentId={r.instrumentId} initialStarred={starred.has(r.instrumentId)} /></td>
-                  <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-100">
-                    <span className="inline-flex items-center gap-1.5">{r.symbol}<ChartLink exchange={r.exchange} ticker={r.symbol} /></span>
+                <tr key={i} className="group border-t border-navy-700/40 hover:bg-navy-800/40">
+                  <td className="sticky left-0 z-10 whitespace-nowrap bg-navy-900 px-3 py-2 font-semibold text-slate-100 group-hover:bg-navy-800">
+                    <span className="inline-flex items-center gap-1.5">
+                      <StarButton instrumentId={r.instrumentId} initialStarred={starred.has(r.instrumentId)} />
+                      {r.symbol}
+                      <ChartLink exchange={r.exchange} ticker={r.symbol} />
+                    </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{r.name}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-300">{r.strategy}</td>
-                  <td className="px-3 py-2 text-xs"><NewsCell tag={r.catalystTag} headline={r.catalystHeadline} url={r.catalystUrl} /></td>
+                  <td className="whitespace-nowrap px-3 py-2 text-xs"><NewsCell tag={r.catalystTag} headline={r.catalystHeadline} url={r.catalystUrl} compact /></td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-300">{dateStr(r.firstSeenDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.entryClose)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-200">{money(r.currentClose)}</td>
