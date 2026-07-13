@@ -260,6 +260,17 @@ CREATE TABLE IF NOT EXISTS news_events (
 CREATE INDEX IF NOT EXISTS idx_news_events_lookup ON news_events (isin, catalyst_tag, event_date);
 CREATE INDEX IF NOT EXISTS idx_news_events_unenrolled ON news_events (enrolled) WHERE enrolled = FALSE;
 
+-- Permanent IPO / new-listing record. A mainboard stock (series EQ/BE/A/B) enters here the first
+-- time it's seen with < 45 bars of history (a genuinely fresh listing — the backfilled starter
+-- universe already has full history, and widened BSE X/XT/T are the wrong series). Once in, it
+-- STAYS forever (unlike the rolling New-Listings view), so the page can show growth-since-listing
+-- permanently. Populated idempotently by refresh_universe.
+CREATE TABLE IF NOT EXISTS ipo_watch (
+    instrument_id   BIGINT PRIMARY KEY REFERENCES instruments(id) ON DELETE CASCADE,
+    first_seen_date DATE NOT NULL,             -- earliest stored bar when recorded ~= listing date
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Deterministic per-source idempotency: the same filing/headline re-ingested any number of times
 -- collapses on UNIQUE(source_uid), so re-runs never double-count a source onto an event.
 CREATE TABLE IF NOT EXISTS news_event_sources (

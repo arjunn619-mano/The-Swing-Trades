@@ -18,7 +18,7 @@ from swing_trades.data_layer.instruments import (  # noqa: E402
     resolve_universe,
 )
 from swing_trades.db.connection import connection  # noqa: E402
-from swing_trades.db.writes import upsert_instruments  # noqa: E402
+from swing_trades.db.writes import record_new_listings, upsert_instruments  # noqa: E402
 
 
 def main() -> None:
@@ -37,8 +37,9 @@ def main() -> None:
 
     with connection(settings.require_database_url()) as conn:
         upsert_instruments(conn, universe, deactivate_missing=True)
+        added = record_new_listings(conn)  # permanent IPO watch (mainboard, < 45 bars)
 
-    print(f"Universe refreshed: {len(universe):,} active instruments.", flush=True)
+    print(f"Universe refreshed: {len(universe):,} active instruments; {added} new IPO(s) recorded.", flush=True)
 
 
 if __name__ == "__main__":

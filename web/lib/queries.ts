@@ -94,8 +94,6 @@ export type OptionRow = {
   daysToExpiry: number | null;
 };
 
-const NEW_LISTING_MAX_BARS = 45;
-
 export async function getOverview(): Promise<Overview> {
   const empty: Overview = { lastScanDate: null, lastScanStatus: null, activeCount: 0, trackedCount: 0, newListingCount: 0 };
   if (!sql) return empty;
@@ -103,17 +101,19 @@ export async function getOverview(): Promise<Overview> {
     const [scan] = await sql`SELECT trade_date, status FROM scan_runs ORDER BY trade_date DESC, id DESC LIMIT 1`;
     const [{ active }] = await sql`SELECT count(*)::int AS active FROM instruments WHERE active = TRUE`;
     const [{ tracked }] = await sql`SELECT count(*)::int AS tracked FROM tracker_entries WHERE status = 'active'`;
-    const [{ newcount }] = await sql`
-      SELECT count(*)::int AS newcount FROM (
-        SELECT i.id FROM instruments i JOIN price_history p ON p.instrument_id = i.id
-        WHERE i.active = TRUE GROUP BY i.id HAVING count(p.id) < ${NEW_LISTING_MAX_BARS}
-      ) t`;
+    let newcount = 0;
+    try {
+      const [row] = await sql`SELECT count(*)::int AS newcount FROM ipo_watch`;
+      newcount = row?.newcount ?? 0;
+    } catch {
+      /* ipo_watch not created yet — the migration applies on the next init_db run */
+    }
     return {
       lastScanDate: scan?.trade_date ?? null,
       lastScanStatus: scan?.status ?? null,
       activeCount: active ?? 0,
       trackedCount: tracked ?? 0,
-      newListingCount: newcount ?? 0,
+      newListingCount: newcount,
     };
   } catch (e) {
     console.error("getOverview failed:", e);
@@ -268,15 +268,14 @@ export async function getNewListings(): Promise<NewListing[]> {
     const rows = await sql`
       SELECT i.id AS instrument_id, i.nse_symbol, i.symbol_name, i.exchange_pref,
              count(p.id)::int AS bars,
-             min(p.trade_date) AS first_bar,
+             w.first_seen_date AS first_bar,
              (array_agg(p.close ORDER BY p.trade_date ASC))[1] AS first_close,
              (array_agg(p.close ORDER BY p.trade_date DESC))[1] AS last_close
-      FROM instruments i
+      FROM ipo_watch w
+      JOIN instruments i ON i.id = w.instrument_id
       JOIN price_history p ON p.instrument_id = i.id
-      WHERE i.active = TRUE
-      GROUP BY i.id
-      HAVING count(p.id) < ${NEW_LISTING_MAX_BARS}
-      ORDER BY min(p.trade_date) DESC, count(p.id) ASC
+      GROUP BY i.id, w.first_seen_date
+      ORDER BY w.first_seen_date DESC
       LIMIT 1000`;
     return rows.map((r) => {
       const first = num(r.first_close);

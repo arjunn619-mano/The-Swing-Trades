@@ -54,6 +54,31 @@ def upsert_instruments(
     return len(rows)
 
 
+def record_new_listings(conn, max_bars: int = 45) -> int:
+    """Idempotently record genuinely-new MAINBOARD listings into ipo_watch: an active EQ/BE/A/B
+    instrument seen with < max_bars of stored history enters once and STAYS forever (the permanent
+    IPO page). The backfilled starter universe already has full history so it never qualifies, and
+    widened BSE X/XT/T are the wrong series. ON CONFLICT keeps the original first_seen_date.
+    Returns the number of new listings recorded this run."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO ipo_watch (instrument_id, first_seen_date)
+            SELECT i.id, min(p.trade_date)
+            FROM instruments i
+            JOIN price_history p ON p.instrument_id = i.id
+            WHERE i.active = TRUE AND i.series IN ('EQ', 'BE', 'A', 'B')
+            GROUP BY i.id
+            HAVING count(p.id) < %s
+            ON CONFLICT (instrument_id) DO NOTHING
+            """,
+            (max_bars,),
+        )
+        n = cur.rowcount or 0
+    conn.commit()
+    return n
+
+
 def upsert_price_history(conn, instrument_id: int, bars: Iterable[PriceBar]) -> int:
     """Bulk-upsert daily bars for one instrument. Idempotent on (instrument_id, trade_date)."""
     rows = [

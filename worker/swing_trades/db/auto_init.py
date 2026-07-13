@@ -22,6 +22,7 @@ EXPECTED_TABLES = (
     "option_observations",
     "news_events",
     "news_event_sources",
+    "ipo_watch",
 )
 
 
