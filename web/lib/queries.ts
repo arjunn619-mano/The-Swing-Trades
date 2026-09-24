@@ -5,7 +5,8 @@ export type Overview = {
   lastScanDate: string | null;
   lastScanStatus: string | null;
   activeCount: number;
-  trackedCount: number;
+  trackedCount: number;   // DISTINCT stocks tracked (<= universe) — the headline number
+  trackedEntries: number; // total (instrument x strategy) rows — a stock in N strategies counts N times
   newListingCount: number;
 };
 
@@ -98,12 +99,13 @@ export type OptionRow = {
 };
 
 export async function getOverview(): Promise<Overview> {
-  const empty: Overview = { lastScanDate: null, lastScanStatus: null, activeCount: 0, trackedCount: 0, newListingCount: 0 };
+  const empty: Overview = { lastScanDate: null, lastScanStatus: null, activeCount: 0, trackedCount: 0, trackedEntries: 0, newListingCount: 0 };
   if (!sql) return empty;
   try {
     const [scan] = await sql`SELECT trade_date, status FROM scan_runs ORDER BY trade_date DESC, id DESC LIMIT 1`;
     const [{ active }] = await sql`SELECT count(*)::int AS active FROM instruments WHERE active = TRUE`;
-    const [{ tracked }] = await sql`SELECT count(*)::int AS tracked FROM tracker_entries WHERE status = 'active'`;
+    // Headline = DISTINCT stocks (so Tracked <= Universe); entries = all (instrument x strategy) rows.
+    const [{ tracked, entries }] = await sql`SELECT count(DISTINCT instrument_id)::int AS tracked, count(*)::int AS entries FROM tracker_entries WHERE status = 'active'`;
     let newcount = 0;
     try {
       const [row] = await sql`SELECT count(*)::int AS newcount FROM ipo_watch`;
@@ -116,6 +118,7 @@ export async function getOverview(): Promise<Overview> {
       lastScanStatus: scan?.status ?? null,
       activeCount: active ?? 0,
       trackedCount: tracked ?? 0,
+      trackedEntries: entries ?? 0,
       newListingCount: newcount,
     };
   } catch (e) {

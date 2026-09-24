@@ -25,7 +25,7 @@ export default async function Home() {
         </p>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="Universe" value={overview.activeCount.toLocaleString("en-IN")} hint="active equities" />
-          <StatCard label="Tracked" value={overview.trackedCount.toLocaleString("en-IN")} hint="active entries" href="/tracker" />
+          <StatCard label="Tracked" value={overview.trackedCount.toLocaleString("en-IN")} hint={`stocks · ${overview.trackedEntries.toLocaleString("en-IN")} entries`} href="/tracker" />
           <StatCard label="New listings" value={overview.newListingCount.toLocaleString("en-IN")} hint="IPOs, since listing" href="/new-listings" />
           <StatCard label="Strategies" value={metrics.length} hint="screening logics" href="/strategies" />
         </div>
