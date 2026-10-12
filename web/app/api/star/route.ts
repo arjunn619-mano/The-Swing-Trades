@@ -6,7 +6,7 @@ import { sql } from "@/lib/db";
 export async function POST(req: Request) {
   if (!sql) return NextResponse.json({ ok: false, error: "no database" }, { status: 500 });
 
-  let body: { instrumentId?: number; starred?: boolean };
+  let body: { instrumentId?: number; starred?: boolean; pin?: string };
   try {
     body = await req.json();
   } catch {
@@ -16,6 +16,14 @@ export async function POST(req: Request) {
   const id = Number(body.instrumentId);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ ok: false, error: "instrumentId required" }, { status: 400 });
+  }
+
+  // Owner gate: only someone who knows OWNER_PIN may persist a star. Everyone else can still view,
+  // sort and filter the public dashboard, but their clicks never reach the DB. Fails CLOSED when
+  // OWNER_PIN is unset, so nothing can be written until the owner configures it in Vercel env.
+  const ownerPin = process.env.OWNER_PIN;
+  if (!ownerPin || body.pin !== ownerPin) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
   try {
