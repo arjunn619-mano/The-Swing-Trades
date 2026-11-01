@@ -15,6 +15,11 @@ on:
 # Prerequisite (run once via the "Bootstrap" workflow): init DB + refresh universe + backfill.
 jobs:
   scan:
+    # PAUSED 2026-11-01 (Arjun: "CAN WE PAUSE THE PROJECT FOR SOMETIME...I NEED A WEEK TO THINK OF IT"). This job
+    # logs in to the same Dhan account as the NIFTY bots and cancelled their token every evening at 17:00 (Dhan keeps
+    # one active token per account). Vercel still dispatches daily; the run is skipped and never logs in.
+    # To resume: delete the `if: false` line below and push.
+    if: false
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
