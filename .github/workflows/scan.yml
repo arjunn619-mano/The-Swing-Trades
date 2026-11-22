@@ -15,11 +15,10 @@ on:
 # Prerequisite (run once via the "Bootstrap" workflow): init DB + refresh universe + backfill.
 jobs:
   scan:
-    # PAUSED 2026-11-01 (Arjun: "CAN WE PAUSE THE PROJECT FOR SOMETIME...I NEED A WEEK TO THINK OF IT"). This job
-    # logs in to the same Dhan account as the NIFTY bots and cancelled their token every evening at 17:00 (Dhan keeps
-    # one active token per account). Vercel still dispatches daily; the run is skipped and never logs in.
-    # To resume: delete the `if: false` line below and push.
-    if: false
+    # RESUMED 2026-11-23 (Arjun 2026-11-22: "i also want the swing tracker to start from tomorrow"; paused 1-22 Nov).
+    # One Dhan account shared with the NIFTY bots (one active token): this job logs in at 17:00 IST, after the bots'
+    # Dhan work (ends ~16:25) and far from their 01:10 / 04:10 logins. The Health page's "Login slot" check turns red
+    # if a login ever lands inside the bots' hours. To pause again: add `if: false` under `scan:` and push.
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
