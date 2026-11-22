@@ -26,6 +26,7 @@ from swing_trades.pipeline.scan import run_scan  # noqa: E402
 from swing_trades.pipeline.store import PostgresStore  # noqa: E402
 from swing_trades.utils import timeutils  # noqa: E402
 from swing_trades.utils.alerts import send_telegram_alert  # noqa: E402
+from swing_trades.utils.health import recorded_job  # noqa: E402
 from swing_trades.utils.logging_setup import setup_logging  # noqa: E402
 
 
@@ -41,30 +42,50 @@ def main() -> None:
         chat_id=settings.alert_telegram_chat_id,
     )
 
-    with connection(settings.require_database_url()) as conn:
-        store = PostgresStore(conn)
-        configs = load_strategy_configs()
-        active = [c for c in configs if c.active]
-        if active and all(store.scan_run_done(store.get_strategy_id(c.key), target) for c in active):
-            logger.info(f"{target} already scanned; nothing to do.")
-            print(json.dumps({"trade_date": target.isoformat(), "status": "already_complete"}))
-            return
+    url = settings.require_database_url()
+    with recorded_job("eod_scan", connect=lambda: connection(url), alert=lambda m: bool(alert(m)), logger=logger) as run:
+        run.trade_date = target
+        with connection(url) as conn:
+            store = PostgresStore(conn)
+            configs = load_strategy_configs()
+            active = [c for c in configs if c.active]
+            if active and all(store.scan_run_done(store.get_strategy_id(c.key), target) for c in active):
+                logger.info(f"{target} already scanned; nothing to do.")
+                run.status, run.note = "skipped", "already scanned"
+                print(json.dumps({"trade_date": target.isoformat(), "status": "already_complete"}))
+                return
 
-        token = generate_access_token(*settings.require_dhan())
-        client = DhanDataClient(token.access_token, settings.dhan_client_id)
-        summary = run_scan(
-            target,
-            store=store,
-            dhan_client=client,
-            strategy_configs=configs,
-            horizon_days=load_tracking_horizon_days(),
-            turnover_floor=load_turnover_floor(),
-            enable_news=True,
-            artifact_dir="artifacts",
-            alert=lambda m: bool(alert(m)),
-            logger=logger,
-        )
-    print(json.dumps(summary.to_dict(), indent=2))
+            tries: list = []
+            try:
+                token = generate_access_token(*settings.require_dhan(), attempt_log=tries)
+                run.dhan_login = "ok"
+            except Exception:
+                run.dhan_login = "failed"
+                raise
+            finally:
+                run.dhan_login_tries = len(tries)
+            client = DhanDataClient(token.access_token, settings.dhan_client_id)
+            try:
+                summary = run_scan(
+                    target,
+                    store=store,
+                    dhan_client=client,
+                    strategy_configs=configs,
+                    horizon_days=load_tracking_horizon_days(),
+                    turnover_floor=load_turnover_floor(),
+                    enable_news=True,
+                    artifact_dir="artifacts",
+                    alert=lambda m: bool(alert(m)),
+                    logger=logger,
+                )
+            finally:
+                run.dhan_calls = client.calls
+            run.items = summary.instruments
+            if summary.status == "failed":
+                run.status, run.note = "failed", summary.error or "scan failed"
+            elif summary.status != "success":
+                run.status, run.note = "skipped", summary.status
+        print(json.dumps(summary.to_dict(), indent=2))
 
 
 if __name__ == "__main__":

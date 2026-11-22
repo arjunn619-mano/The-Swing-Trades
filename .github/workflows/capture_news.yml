@@ -17,6 +17,7 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       ALERT_TELEGRAM_BOT_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
       ALERT_TELEGRAM_CHAT_ID: ${{ secrets.ALERT_TELEGRAM_CHAT_ID }}
+      REPO_PRIVATE: ${{ github.event.repository.private }} # health page: GitHub minutes are free only on a public repo
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # OPTIONAL — the deterministic Tier-A backbone runs without it
     steps:
       - uses: actions/checkout@v4

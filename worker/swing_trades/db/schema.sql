@@ -304,3 +304,25 @@ FROM (SELECT DISTINCT ON (instrument_id) instrument_id, headline, url
 WHERE te.instrument_id = ev.instrument_id
   AND te.strategy_id = (SELECT id FROM strategies WHERE key = 'news_positive')
   AND te.catalyst_url IS NULL AND ev.url IS NOT NULL;
+
+-- Job health log (Arjun 2026-11-22: health + efficiency page). One row per scheduled job run, written when it ENDS:
+-- did it work (status, items), the Dhan login, Dhan calls, database size, and the judged outside limits (limits_json,
+-- produced by swing_trades/utils/health.py). The website's /health page and /api/health only read it.
+CREATE TABLE IF NOT EXISTS job_runs (
+    id               BIGSERIAL PRIMARY KEY,
+    job              TEXT NOT NULL,                       -- eod_scan | news_capture
+    started_at       TIMESTAMPTZ NOT NULL,
+    finished_at      TIMESTAMPTZ NOT NULL,
+    status           TEXT NOT NULL,                       -- success | failed | skipped
+    trade_date       DATE,
+    dhan_login       TEXT NOT NULL DEFAULT 'none',        -- ok | failed | none
+    dhan_login_tries INTEGER NOT NULL DEFAULT 0,
+    dhan_calls       INTEGER NOT NULL DEFAULT 0,
+    items            INTEGER NOT NULL DEFAULT 0,
+    db_bytes         BIGINT,
+    note             TEXT,
+    alarm_state      TEXT,                                -- ok | watch | broken (overall, after this run)
+    limits_json      JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_job_runs_job_started ON job_runs (job, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_job_runs_finished ON job_runs (finished_at DESC);

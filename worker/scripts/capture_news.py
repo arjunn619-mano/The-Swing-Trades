@@ -28,6 +28,7 @@ from swing_trades.db.connection import connection  # noqa: E402
 from swing_trades.pipeline.store import PostgresStore  # noqa: E402
 from swing_trades.utils import timeutils  # noqa: E402
 from swing_trades.utils.alerts import send_telegram_alert  # noqa: E402
+from swing_trades.utils.health import recorded_job  # noqa: E402
 from swing_trades.utils.logging_setup import setup_logging  # noqa: E402
 
 
@@ -61,35 +62,39 @@ def main() -> None:
         chat_id=settings.alert_telegram_chat_id,
     )
 
-    logger.info("downloading instrument master for the news resolver...")
-    master = requests.get(INSTRUMENT_CSV_URL, timeout=180).text
-    resolver = build_resolver_from_master(master)
+    url = settings.require_database_url()
+    with recorded_job("news_capture", connect=lambda: connection(url), alert=lambda m: bool(alert(m)), logger=logger) as run:
+        run.trade_date = today
+        logger.info("downloading instrument master for the news resolver...")
+        master = requests.get(INSTRUMENT_CSV_URL, timeout=180).text
+        resolver = build_resolver_from_master(master)
 
-    llm_classify = _build_llm_classify(params)
-    # BSE (deterministic backbone) always; the RSS narrative layer only when the LLM is available
-    # (RSS items are all Tier-C — they need the LLM to extract the company + judge sentiment).
-    adapters = [BseAdapter()]
-    if llm_classify is not None:
-        adapters.append(RssAdapter())
+        llm_classify = _build_llm_classify(params)
+        # BSE (deterministic backbone) always; the RSS narrative layer only when the LLM is available
+        # (RSS items are all Tier-C — they need the LLM to extract the company + judge sentiment).
+        adapters = [BseAdapter()]
+        if llm_classify is not None:
+            adapters.append(RssAdapter())
 
-    with connection(settings.require_database_url()) as conn:
-        result = capture_news(
-            today, adapters=adapters, http_get=requests_get, resolver=resolver, store=PostgresStore(conn),
-            is_trading_day=is_td, llm_classify=llm_classify,
-            window_days=int(params.get("dedup_window_days", 2)),
-            log_only_count=bool(health_cfg.get("log_only_count", True)),
-            today=today,
-        )
-
-    # Alert on any non-OK source (hard failures always alarm; low-count deferred by log_only_count).
-    for h in result.health:
-        if h.status != HealthStatus.OK:
-            alert(
-                f"[The Swing Trades] news source {h.source} {h.status.value}: "
-                f"{h.failed_check or '-'} — {h.detail}\nsample: {(h.sample or '')[:180]}"
+        with connection(url) as conn:
+            result = capture_news(
+                today, adapters=adapters, http_get=requests_get, resolver=resolver, store=PostgresStore(conn),
+                is_trading_day=is_td, llm_classify=llm_classify,
+                window_days=int(params.get("dedup_window_days", 2)),
+                log_only_count=bool(health_cfg.get("log_only_count", True)),
+                today=today,
             )
-    logger.info(f"news capture complete: {result.to_dict()}")
-    print(json.dumps(result.to_dict(), indent=2))
+
+        # Alert on any non-OK source (hard failures always alarm; low-count deferred by log_only_count).
+        for h in result.health:
+            if h.status != HealthStatus.OK:
+                alert(
+                    f"[The Swing Trades] news source {h.source} {h.status.value}: "
+                    f"{h.failed_check or '-'} — {h.detail}\nsample: {(h.sample or '')[:180]}"
+                )
+        run.items = result.fetched
+        logger.info(f"news capture complete: {result.to_dict()}")
+        print(json.dumps(result.to_dict(), indent=2))
 
 
 if __name__ == "__main__":

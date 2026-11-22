@@ -36,6 +36,7 @@ class DhanDataClient:
         self._sleep = sleep
         self._retries = retries
         self._backoff = backoff
+        self.calls = 0  # every HTTP attempt to Dhan, counted for the health log (Dhan limit: 100k data calls/day)
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -49,6 +50,7 @@ class DhanDataClient:
         last_err: Optional[Exception] = None
         for attempt in range(self._retries):
             try:
+                self.calls += 1
                 resp = self.session.post(
                     self.base_url + path, json=body, headers=self._headers(), timeout=30
                 )

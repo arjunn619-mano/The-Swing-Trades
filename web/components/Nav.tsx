@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/new-listings", label: "New Listings", short: "New", icon: "new" },
   { href: "/strategies", label: "Strategies", short: "Strats", icon: "strategies" },
   { href: "/starred", label: "Starred", short: "Starred", icon: "starred" },
+  { href: "/health", label: "Health", short: "Health", icon: "health" },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -65,6 +66,12 @@ function Icon({ name, className = "h-5 w-5" }: { name: string; className?: strin
       return (
         <svg {...p}>
           <path d="M12 4l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 17.8 6.9 20l1-5.8-4.2-4.1 5.8-.8z" />
+        </svg>
+      );
+    case "health":
+      return (
+        <svg {...p}>
+          <path d="M3 12h4l2-5 4 10 2-5h6" />
         </svg>
       );
     default:
@@ -171,7 +178,7 @@ export function Nav({
 
       {/* Mobile bottom tab bar — every destination one thumb-tap away */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-navy-700/60 bg-navy-950/95 backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-[1800px] grid-cols-6">
+        <div className="mx-auto grid max-w-[1800px] grid-cols-7">
           {LINKS.map((l) => {
             const active = isActive(pathname, l.href);
             return (

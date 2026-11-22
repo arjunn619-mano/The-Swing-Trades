@@ -38,6 +38,7 @@ def generate_access_token(
     timeout: int = 30,
     retries: int = 1,
     sleep: Callable[[float], None] = time.sleep,
+    attempt_log: Optional[list] = None,
 ) -> TokenInfo:
     """Mint a Dhan access token from PIN + TOTP.
 
@@ -65,6 +66,8 @@ def generate_access_token(
             sleep(_seconds_to_next_totp_window())
             code = current_totp(totp_secret)
 
+        if attempt_log is not None:
+            attempt_log.append(attempt + 1)  # for the health log: how many tries this login took
         resp = http_post(
             AUTH_URL,
             params={"dhanClientId": client_id, "pin": pin, "totp": code},

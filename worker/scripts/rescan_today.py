@@ -25,6 +25,7 @@ from swing_trades.pipeline.scan import run_scan  # noqa: E402
 from swing_trades.pipeline.store import PostgresStore  # noqa: E402
 from swing_trades.utils import timeutils  # noqa: E402
 from swing_trades.utils.alerts import send_telegram_alert  # noqa: E402
+from swing_trades.utils.health import recorded_job  # noqa: E402
 from swing_trades.utils.logging_setup import setup_logging  # noqa: E402
 
 
@@ -53,31 +54,48 @@ def main() -> None:
         print(json.dumps({"trade_date": trade_date.isoformat(), "status": "refused_before_market_close"}))
         return
 
-    token = generate_access_token(*settings.require_dhan())
-    client = DhanDataClient(token.access_token, settings.dhan_client_id)
     alert = functools.partial(
         send_telegram_alert,
         bot_token=settings.alert_telegram_bot_token,
         chat_id=settings.alert_telegram_chat_id,
     )
+    url = settings.require_database_url()
+    with recorded_job("eod_scan", connect=lambda: connection(url), alert=lambda m: bool(alert(m)), logger=logger) as run:
+        run.trade_date, run.note = trade_date, "manual re-scan"
+        tries: list = []
+        try:
+            token = generate_access_token(*settings.require_dhan(), attempt_log=tries)
+            run.dhan_login = "ok"
+        except Exception:
+            run.dhan_login = "failed"
+            raise
+        finally:
+            run.dhan_login_tries = len(tries)
+        client = DhanDataClient(token.access_token, settings.dhan_client_id)
 
-    with connection(settings.require_database_url()) as conn:
-        store = PostgresStore(conn)
-        logger.info(f"resetting {trade_date} scan data for a clean re-scan")
-        reset_date(conn, trade_date)
-        summary = run_scan(
-            trade_date,
-            store=store,
-            dhan_client=client,
-            strategy_configs=load_strategy_configs(),
-            horizon_days=load_tracking_horizon_days(),
-            turnover_floor=load_turnover_floor(),
-            enable_news=True,
-            artifact_dir="artifacts",
-            alert=lambda m: bool(alert(m)),
-            logger=logger,
-        )
-    print(json.dumps(summary.to_dict(), indent=2))
+        with connection(url) as conn:
+            store = PostgresStore(conn)
+            logger.info(f"resetting {trade_date} scan data for a clean re-scan")
+            reset_date(conn, trade_date)
+            try:
+                summary = run_scan(
+                    trade_date,
+                    store=store,
+                    dhan_client=client,
+                    strategy_configs=load_strategy_configs(),
+                    horizon_days=load_tracking_horizon_days(),
+                    turnover_floor=load_turnover_floor(),
+                    enable_news=True,
+                    artifact_dir="artifacts",
+                    alert=lambda m: bool(alert(m)),
+                    logger=logger,
+                )
+            finally:
+                run.dhan_calls = client.calls
+        run.items = summary.instruments
+        if summary.status == "failed":
+            run.status, run.note = "failed", summary.error or "scan failed"
+        print(json.dumps(summary.to_dict(), indent=2))
 
 
 if __name__ == "__main__":
