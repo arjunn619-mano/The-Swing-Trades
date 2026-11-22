@@ -22,6 +22,7 @@ from swing_trades.data_layer.dhan_auth import generate_access_token  # noqa: E40
 from swing_trades.data_layer.dhan_client import DhanDataClient  # noqa: E402
 from swing_trades.db.connection import connection  # noqa: E402
 from swing_trades.pipeline.catchup import last_settled_session  # noqa: E402
+from swing_trades.pipeline.gapfill import fill_price_gap  # noqa: E402
 from swing_trades.pipeline.scan import run_scan  # noqa: E402
 from swing_trades.pipeline.store import PostgresStore  # noqa: E402
 from swing_trades.utils import timeutils  # noqa: E402
@@ -66,6 +67,12 @@ def main() -> None:
                 run.dhan_login_tries = len(tries)
             client = DhanDataClient(token.access_token, settings.dhan_client_id)
             try:
+                # Missed days (e.g. the Nov 2026 pause) leave a hole in the trailing bars the indicators read:
+                # fill it first with the same login. A normal day finds no gap and makes no extra call.
+                gap = fill_price_gap(store, client, target, logger=logger)
+                if gap["gap_trading_days"]:
+                    run.note = "filled %d missed trading day(s) of prices for %d stocks (%d failed)" % (
+                        gap["gap_trading_days"], gap["filled"], gap["failed"])
                 summary = run_scan(
                     target,
                     store=store,
