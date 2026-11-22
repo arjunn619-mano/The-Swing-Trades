@@ -3,10 +3,10 @@ something in the swing trader website.....like an health and efficiency page...t
 
 Every scheduled job (EOD scan, news capture) records ONE row in `job_runs` when it ends: when it ran, whether it
 WORKED (status + items written, not just "it ran"), the Dhan login result, Dhan calls made, the database size, and the
-judged outside limits (`limits_json`). The website's /health page and /api/health only READ that row, so the rules
+judged outside limits (`limits_json`). The website's /health page only READS that row, so the rules
 live in one place (here) and the page never re-implements them.
 
-Rules (one rule everywhere, same as the NIFTY firm's limits register): amber ("watch") at 60 % of a limit, red
+Rules: amber ("watch") at 60 % of a limit, red
 ("broken") at 80 %, measured now or forecast to month end. A limit we cannot measure says so in plain words and is
 never shown as fine.
 

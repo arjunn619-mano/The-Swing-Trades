@@ -180,8 +180,7 @@ export default async function HealthPage() {
           weeks on trial first: shown here, not sent, so a wrong check cannot flood your phone.
         </p>
         <p>
-          <span className="text-slate-100">This page</span>, updated whenever a job ends. The NIFTY bots&apos; Health page also shows a
-          Swing Trades row from this page&apos;s data.
+          <span className="text-slate-100">This page</span>, updated whenever a job ends.
         </p>
       </Card>
 
